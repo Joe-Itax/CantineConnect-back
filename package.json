@@ -1,0 +1,14 @@
+{
+  "name": "cantineconnect",
+  "version": "1.0.0",
+  "description": "Backend CantineConnect web app",
+  "main": "./src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon ./src/index.js",
+    "prod": "node ./src/index.js"
+  },
+  "repository": "https://github.com/Joe-Itax/CantineConnect-back.git",
+  "author": "Joe-Itax <josephitakala18@gmail.com>",
+  "license": "ISC"
+}
