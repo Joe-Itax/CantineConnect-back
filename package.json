@@ -10,5 +10,29 @@
   },
   "repository": "https://github.com/Joe-Itax/CantineConnect-back.git",
   "author": "Joe-Itax <josephitakala18@gmail.com>",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cloudinary": "^2.5.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1"
+  },
+  "resolutions": {
+    "debug": "^4.3.1"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.8",
+    "@types/passport": "^1.0.17",
+    "nodemon": "^3.1.9",
+    "prisma": "^6.4.1"
+  }
 }
