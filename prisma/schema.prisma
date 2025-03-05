@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modèle pour les utilisateurs (Parents, Agents, Admins)
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      UserRole // "parent", "agent", "admin"
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  parent   Parent?
+  parentId Int?
+  agent    Agent?
+  agentId  Int?
+
+  // Index sur le champ email pour accélérer les recherches
+  @@index([email])
+}
+
+enum UserRole {
+  admin
+  parent
+  agent
+}
+
+// Modèle pour les parents
+model Parent {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id])
+  students  Student[] // Plusieurs enfants peuvent être associés à un parent
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Modèle pour les agents
+model Agent {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modèle pour TOUS les élèves de l'école
+model SchoolStudent {
+  id        String   @id @default(uuid())
+  name      String
+  class     String
+  matricule String   @unique // Matricule en dur (non hashé)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Student   Student?
+
+  // Index sur le champ matricule pour accélérer les recherches
+  @@index([matricule])
+}
+
+// Modèle pour les élèves enregistrés à la cantine
+model Student {
+  id              String         @id @default(uuid())
+  schoolStudentId String         @unique // Référence à l'élève dans SchoolStudent
+  schoolStudent   SchoolStudent  @relation(fields: [schoolStudentId], references: [id])
+  matriculeHashe  String         @unique // Matricule hashé pour le QR Code
+  parentId        String
+  parent          Parent         @relation(fields: [parentId], references: [id])
+  abonnements     Abonnement[]
+  repas           Repas[]
+  notifications   Notification[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Index sur les champs fréquemment interrogés
+  @@index([schoolStudentId])
+  @@index([matriculeHashe])
+  @@index([parentId])
+}
+
+// Modèle pour les abonnements
+model Abonnement {
+  id        Int      @id @default(autoincrement())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  duration  Int // Durée de l'abonnement en jours (1, 3, 7, 30)
+  price     Float // Prix de l'abonnement (2000, 7000, 15000, 70000)
+  startDate DateTime @default(now())
+  endDate   DateTime // Date de fin calculée
+  status    String   @default("actif") // "actif", "expiré"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modèle pour les repas
+model Repas {
+  id        Int      @id @default(autoincrement())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  date      DateTime @default(now())
+  status    Boolean? // true = repas pris, false = repas non pris, null = week-end ou absence
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modèle pour les notifications
+model Notification {
+  id        Int      @id @default(autoincrement())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  message   String
+  read      Boolean  @default(false) // true = lue, false = non lue
+  type      String // "abonnement", "repas", "expiration"
+  details   Json? // Détails supplémentaires (ex: montant, date d'expiration)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

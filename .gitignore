@@ -1,12 +1,9 @@
 node_modules
 # Keep environment variables out of version control
 .env
-# README.MD
 
 /src/config
 /src/controllers
 /src/middlewares
 /src/routes
 /src/utils
-
-/prisma
