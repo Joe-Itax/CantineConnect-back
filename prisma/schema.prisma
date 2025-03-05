@@ -25,9 +25,9 @@ model User {
 
   // Relations
   parent   Parent?
-  parentId Int?
+  parentId String?
   agent    Agent?
-  agentId  Int?
+  agentId  String?
 
   // Index sur le champ email pour accélérer les recherches
   @@index([email])

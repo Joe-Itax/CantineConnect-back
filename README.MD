@@ -10,7 +10,7 @@
 
 ## 🔐 Authentification
 
-### Connexion Parent/Agent
+### Connexion Parent/Agent/Admin
 
 #### Endpoint
 
@@ -30,7 +30,7 @@
 
 #### Réponses possibles
 
-**200 OK : Connexion en tant que Parent/Agent réussie.**
+**200 OK : Connexion en tant que Parent/Agent/Admin réussie.**
 
 ```json
 {
@@ -44,53 +44,7 @@
 }
 ```
 
-**401 Unauthorized : Email ou mot de passe incorrect.**
-
-```json
-{
-  "error": "Identifiants incorrects"
-}
-```
-
-**500 Internal Server Error : Bug backend.**
-
-```json
-{
-  "error": "Erreur serveur"
-}
-```
-
-### Connexion Admin
-
-**Endpoint**:
-`POST /api/admin/auth/login`
-
-**Body attendu (JSON)**:
-
-```json
-{
-  "email": "admin@exemple.com",
-  "password": "motdepasse"
-}
-```
-
-#### Réponses possibles
-
-**200 OK : Connexion en tant que Admin réussie.**
-
-```json
-{
-  "message": "Connexion réussie",
-  "token": "jwt_token",
-  "user": {
-    "id": 12,
-    "role": "admin",
-    "name": "Jean Dupont"
-  }
-}
-```
-
-**401 Unauthorized : Email ou mot de passe incorrect.**
+**403 Forbidden : Email ou mot de passe incorrect.**
 
 ```json
 {
@@ -146,7 +100,7 @@
 #### Endpoint
 
 ```http
-  GET /api/admin/cantine/students?page=1&limit=10
+  GET /api/students?page=1&limit=10
 ```
 
 | Paramètre | Type     | Description        | Défaut |
@@ -178,7 +132,7 @@
 ]
 ```
 
-**403 Forbidden : L’utilisateur n’a pas les permissions.**
+**401 Unauthorized : L’utilisateur n’a pas les permissions.**
 
 ```json
 {
@@ -238,11 +192,11 @@
 ### Achat d’un abonnement (Par le Parent)
 
 **Endpoint**:
-`POST /api/abonnements/students/${matriculeHashe}`
+`POST /api/students/${matriculeHashe}/abonnements`
 
-| Paramètre        | Type     | Description                 |
-| :--------------- | :------- | :-------------------------- |
-| `matriculeHashe` | `string` | **Required**. Id de l'élève |
+| Paramètre        | Type     | Description                             |
+| :--------------- | :------- | :-------------------------------------- |
+| `matriculeHashe` | `string` | **Required**. matriculeHashé de l'élève |
 
 **Body attendu (JSON)**:
 
@@ -312,7 +266,7 @@
 
 #### Endpoint
 
-`POST /api/repas/scan`
+`POST /api/students/scan`
 
 **Body attendu (JSON)**:
 
@@ -368,14 +322,14 @@
 
 #### Endpoint
 
-`GET /api/repas/students/${id}`
+`GET /api/students/${id}/historique-repas`
 
 | Paramètre | Type     | Description                 |
 | :-------- | :------- | :-------------------------- |
 | `id`      | `string` | **Required**. Id de l'élève |
 
 Ajout possible : Ajout des filtres pour permettre aux parents de consulter l'historique sur une période spécifique.
-Exemple : `GET /api/repas/students/${id}?startDate=2025-03-01&endDate=2025-03-31`
+Exemple : `GET /api/students/${id}/historique-repas?startDate=2025-03-01&endDate=2025-03-31`
 
 #### Réponses possibles
 
@@ -419,7 +373,7 @@ Exemple : `GET /api/repas/students/${id}?startDate=2025-03-01&endDate=2025-03-31
 
 #### Endpoint
 
-`GET /api/notifications/${idStudent}?page=1&limit=10`
+`GET /api/students/${id}/notifications?page=1&limit=10`
 
 | Paramètre | Type     | Description        | Défaut |
 | --------- | -------- | ------------------ | ------ |

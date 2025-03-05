@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
-// const { PrismaClient } = require("@prisma/client");
+const { PrismaClient } = require("@prisma/client");
 
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -59,20 +59,20 @@ app.use(function (req, res, next) {
 // const { checkAuthStatus } = require("./controllers/auth.controllers");
 // app.get("/status", checkAuthStatus);
 
-// const prisma = new PrismaClient({
-//   datasources: {
-//     db: {
-//       url: process.env.DATABASE_URL,
-//     },
-//   },
-//   log: ["query", "info", "warn", "error"],
-// });
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: ["query", "info", "warn", "error"],
+});
 
 /**
  * -------------- PASSPORT AUTHENTICATION ----------------
  */
 
-// require("./config/passport-strategies/jwt");
+require("./config/passport-strategies/jwt");
 app.use(passport.initialize());
 
 /**
@@ -80,7 +80,7 @@ app.use(passport.initialize());
  */
 
 app.get("/", (req, res) => {
-  res.send("Hello, la racine de l'app Etudify");
+  res.send("Hello, la racine de l'app Cantine Connect");
 });
 
 // app.use(authBaseURI, authRouter);
