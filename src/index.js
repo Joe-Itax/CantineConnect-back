@@ -6,8 +6,14 @@ const { PrismaClient } = require("@prisma/client");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const passport = require("passport");
-// const { authBaseURI } = require("./config/path.config");
-// const { authRouter } = require("./routes/index.routes");
+const session = require("express-session");
+const { RedisStore } = require("connect-redis");
+const { createClient } = require("redis");
+const { serialiseDeserialiseUser } = require("./utils/helper");
+
+const { authBaseURI, usersBaseURI } = require("./config/path.config");
+const { authRouter } = require("./routes/index.routes");
+const usersRouter = require("./routes/users.routes");
 
 /**
  * ------------------  GENERAL SETUP  ---------------
@@ -54,7 +60,37 @@ app.use(function (req, res, next) {
 /**
  * -------------- SESSION SETUP ----------------
  */
+// Initialize client.
+let redisClient = createClient({ url: process.env.REDIS_URL });
+(async () => {
+  try {
+    await redisClient.connect();
+    console.log("Redis client connecté");
+  } catch (err) {
+    console.log("Redis client non connecté");
+    console.error(err);
+  }
+})();
 
+// Initialize store.
+let redisStore = new RedisStore({
+  client: redisClient,
+  prefix: "cantine-connect:",
+});
+app.use(
+  session({
+    store: redisStore,
+    secret: process.env.SESSION_SECRET, // Clé secrète pour signer les cookies
+    resave: false, // Ne pas sauvegarder la session si elle n'est pas modifiée
+    saveUninitialized: false, // Ne pas créer de session pour les requêtes sans données de session
+    cookie: {
+      httpOnly: true, // Empêche l'accès au cookie via JavaScript (protection XSS)
+      secure: process.env.NODE_ENV === "production", // Activer en HTTPS (prod)
+      sameSite: "strict", // Protection contre les attaques CSRF
+      maxAge: 1000 * 60 * 60 * 24 * 7, // Durée de vie du cookie (7 jours)
+    },
+  })
+);
 // Passer l'instance d'Express aux contrôleurs
 // const { checkAuthStatus } = require("./controllers/auth.controllers");
 // app.get("/status", checkAuthStatus);
@@ -72,8 +108,11 @@ const prisma = new PrismaClient({
  * -------------- PASSPORT AUTHENTICATION ----------------
  */
 
-require("./config/passport-strategies/jwt");
 app.use(passport.initialize());
+app.use(passport.session());
+// Configuration de la stratégie locale (email + mot de passe)
+require("./config/passport-strategies/local");
+serialiseDeserialiseUser(passport);
 
 /**
  * -------------- ROUTES ----------------
@@ -83,7 +122,8 @@ app.get("/", (req, res) => {
   res.send("Hello, la racine de l'app Cantine Connect");
 });
 
-// app.use(authBaseURI, authRouter);
+app.use(authBaseURI, authRouter);
+app.use(usersBaseURI, usersRouter);
 
 /**
  * -------------- RUN SERVER ----------------

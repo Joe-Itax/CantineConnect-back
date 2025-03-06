@@ -12,23 +12,29 @@
   "author": "Joe-Itax <josephitakala18@gmail.com>",
   "license": "ISC",
   "dependencies": {
+    "@faker-js/faker": "^9.5.1",
     "@prisma/client": "^6.4.1",
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.5.1",
+    "connect-redis": "^8.0.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-session": "^1.18.1",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "passport": "^0.7.0",
-    "passport-jwt": "^4.0.1"
+    "passport-jwt": "^4.0.1",
+    "passport-local": "^1.0.0",
+    "redis": "^4.7.0"
   },
   "resolutions": {
     "debug": "^4.3.1"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/cookie-parser": "^1.4.8",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.8",

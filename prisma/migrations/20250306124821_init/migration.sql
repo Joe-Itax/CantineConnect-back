@@ -7,11 +7,9 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "role" "UserRole" NOT NULL,
-    "name" TEXT,
+    "name" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "parentId" INTEGER,
-    "agentId" INTEGER,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -19,21 +17,8 @@ CREATE TABLE "User" (
 -- CreateTable
 CREATE TABLE "Parent" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Parent_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Agent" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Agent_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -41,6 +26,7 @@ CREATE TABLE "SchoolStudent" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "class" TEXT NOT NULL,
+    "gender" TEXT NOT NULL,
     "matricule" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -108,10 +94,7 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 CREATE INDEX "User_email_idx" ON "User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Parent_userId_key" ON "Parent"("userId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Agent_userId_key" ON "Agent"("userId");
+CREATE UNIQUE INDEX "Parent_id_key" ON "Parent"("id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SchoolStudent_matricule_key" ON "SchoolStudent"("matricule");
@@ -120,10 +103,16 @@ CREATE UNIQUE INDEX "SchoolStudent_matricule_key" ON "SchoolStudent"("matricule"
 CREATE INDEX "SchoolStudent_matricule_idx" ON "SchoolStudent"("matricule");
 
 -- CreateIndex
+CREATE INDEX "SchoolStudent_id_idx" ON "SchoolStudent"("id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Student_schoolStudentId_key" ON "Student"("schoolStudentId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Student_matriculeHashe_key" ON "Student"("matriculeHashe");
+
+-- CreateIndex
+CREATE INDEX "Student_id_idx" ON "Student"("id");
 
 -- CreateIndex
 CREATE INDEX "Student_schoolStudentId_idx" ON "Student"("schoolStudentId");
@@ -134,11 +123,11 @@ CREATE INDEX "Student_matriculeHashe_idx" ON "Student"("matriculeHashe");
 -- CreateIndex
 CREATE INDEX "Student_parentId_idx" ON "Student"("parentId");
 
--- AddForeignKey
-ALTER TABLE "Parent" ADD CONSTRAINT "Parent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "Notification_id_idx" ON "Notification"("id");
 
 -- AddForeignKey
-ALTER TABLE "Agent" ADD CONSTRAINT "Agent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Parent" ADD CONSTRAINT "Parent_id_fkey" FOREIGN KEY ("id") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Student" ADD CONSTRAINT "Student_schoolStudentId_fkey" FOREIGN KEY ("schoolStudentId") REFERENCES "SchoolStudent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

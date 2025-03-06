@@ -19,15 +19,12 @@ model User {
   email     String   @unique
   password  String
   role      UserRole // "parent", "agent", "admin"
-  name      String?
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  parent   Parent?
-  parentId String?
-  agent    Agent?
-  agentId  String?
+  parent Parent?
 
   // Index sur le champ email pour accélérer les recherches
   @@index([email])
@@ -39,37 +36,45 @@ enum UserRole {
   agent
 }
 
+// Modèle pour les admins
+// model Admin {
+//   // id        String   @id @default(uuid())
+//   id        String   @id @unique
+//   user      User     @relation(fields: [id], references: [id])
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+// }
+
 // Modèle pour les parents
 model Parent {
-  id        String    @id @default(uuid())
-  userId    String    @unique
-  user      User      @relation(fields: [userId], references: [id])
-  students  Student[] // Plusieurs enfants peuvent être associés à un parent
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id       String    @id @unique
+  user     User      @relation(fields: [id], references: [id])
+  students Student[] // Plusieurs enfants peuvent être associés à un parent
 }
 
 // Modèle pour les agents
-model Agent {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+// model Agent {
+//   // id        String   @id @default(uuid())
+//   id        String   @id @unique
+//   user      User     @relation(fields: [id], references: [id])
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+// }
 
 // Modèle pour TOUS les élèves de l'école
 model SchoolStudent {
   id        String   @id @default(uuid())
   name      String
   class     String
+  gender    String
   matricule String   @unique // Matricule en dur (non hashé)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   Student   Student?
 
-  // Index sur le champ matricule pour accélérer les recherches
+  // Index sur les champs matricule et id pour accélérer les recherches
   @@index([matricule])
+  @@index([id])
 }
 
 // Modèle pour les élèves enregistrés à la cantine
@@ -87,6 +92,7 @@ model Student {
   updatedAt       DateTime       @updatedAt
 
   // Index sur les champs fréquemment interrogés
+  @@index([id])
   @@index([schoolStudentId])
   @@index([matriculeHashe])
   @@index([parentId])
@@ -128,4 +134,6 @@ model Notification {
   details   Json? // Détails supplémentaires (ex: montant, date d'expiration)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([id])
 }
