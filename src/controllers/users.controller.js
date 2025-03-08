@@ -1,6 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const { hashPassword } = require("../utils/helper");
+const { paginationQuery, hashValue } = require("../utils");
 
 // Regex pour valider l'email et le mot de passe
 const emailValid = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -34,7 +34,7 @@ async function addNewUser(req, res) {
   }
 
   //Hasher le password
-  userReq.password = await hashPassword(userReq.password);
+  userReq.password = await hashValue(userReq.password);
 
   try {
     const existingUser = await prisma.user.findUnique({
@@ -91,9 +91,47 @@ async function addNewUser(req, res) {
   }
 }
 
-async function addNewStudent(req, res) {}
+async function getAllUsers(req, res) {
+  try {
+    const { page, limit } = req.query;
+    const result = await paginationQuery(prisma.user, page, limit, {
+      id: true,
+      email: true,
+      role: true,
+      name: true,
+      createdAt: true,
+      updatedAt: true,
+      parent: true,
+    });
+
+    if (result.error) {
+      return res.status(400).json({
+        message: result.error,
+        ...result,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Liste des utilisateurs",
+      ...result,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des utilisateurs :", error);
+    return res.status(500).json({
+      message:
+        "Une erreur est survenue lors de la récupération des utilisateurs.",
+    });
+  }
+}
+
+async function addNewStudent(req, res) {
+  const userReq = req.body;
+}
+
+async function getAllStudents(req, res) {}
 
 module.exports = {
   addNewUser,
   addNewStudent,
+  getAllUsers,
 };

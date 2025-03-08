@@ -1,14 +1,5 @@
-const bcrypt = require("bcrypt");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-
-const hashPassword = async (password) => {
-  return bcrypt.hashSync(password, 10);
-};
-
-const comparePassword = async (password, passwordHashed) => {
-  return bcrypt.compareSync(password, passwordHashed);
-};
 
 const serialiseDeserialiseUser = async (passport) => {
   passport.serializeUser(async (user, done) => {
@@ -25,6 +16,11 @@ const serialiseDeserialiseUser = async (passport) => {
   });
 };
 
+module.exports = {
+  serialiseDeserialiseUser,
+};
+
+/*
 //Generer des fakes data des élèves de l'école
 const { fakerFR: faker } = require("@faker-js/faker");
 const fs = require("fs");
@@ -98,10 +94,5 @@ async function insertStudents() {
 }
 
 // Génération des fake data des élèves
-// insertStudents();
-
-module.exports = {
-  hashPassword,
-  comparePassword,
-  serialiseDeserialiseUser,
-};
+ insertStudents();
+*/

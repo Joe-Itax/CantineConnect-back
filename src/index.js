@@ -9,11 +9,11 @@ const passport = require("passport");
 const session = require("express-session");
 const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
-const { serialiseDeserialiseUser } = require("./utils/helper");
 
 const { authBaseURI, usersBaseURI } = require("./config/path.config");
 const { authRouter } = require("./routes/index.routes");
 const usersRouter = require("./routes/users.routes");
+const { serialiseDeserialiseUser } = require("./utils");
 
 /**
  * ------------------  GENERAL SETUP  ---------------
