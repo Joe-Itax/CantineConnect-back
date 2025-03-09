@@ -10,7 +10,7 @@ const { authMiddleware } = require("../middlewares/auth.middleware");
 
 authRouter.post("/login", loginUser);
 
-authRouter.post("/logout", logoutUser);
+authRouter.post("/logout", authMiddleware, logoutUser);
 
 authRouter.get("/user-state", authMiddleware, getUserState);
 

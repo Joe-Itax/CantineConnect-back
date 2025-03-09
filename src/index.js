@@ -10,10 +10,19 @@ const session = require("express-session");
 const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
 
-const { authBaseURI, usersBaseURI } = require("./config/path.config");
-const { authRouter } = require("./routes/index.routes");
-const usersRouter = require("./routes/users.routes");
+const {
+  authBaseURI,
+  usersBaseURI,
+  studentsBaseURI,
+} = require("./config/path.config");
+const {
+  authRouter,
+  usersRouter,
+  studentsRouter,
+} = require("./routes/index.routes");
+// const usersRouter = require("./routes/users.routes");
 const { serialiseDeserialiseUser } = require("./utils");
+// const studentsRouter = require("./routes/students.routes");
 
 /**
  * ------------------  GENERAL SETUP  ---------------
@@ -124,6 +133,7 @@ app.get("/", (req, res) => {
 
 app.use(authBaseURI, authRouter);
 app.use(usersBaseURI, usersRouter);
+app.use(studentsBaseURI, studentsRouter);
 
 /**
  * -------------- RUN SERVER ----------------

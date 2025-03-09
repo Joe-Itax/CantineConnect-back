@@ -1,5 +1,5 @@
 async function paginationQuery(model, page = 1, limit = 10, select = null) {
-  page = Math.max(1, parseInt(page) || 1); // Assurer un min à 1
+  page = Math.max(1, parseInt(page) || 1);
   limit = Math.max(1, parseInt(limit) || 10);
   const skip = (page - 1) * limit;
 
@@ -11,10 +11,10 @@ async function paginationQuery(model, page = 1, limit = 10, select = null) {
   if (page > totalPages && totalItems > 0) {
     return {
       error: `La page ${page} n'existe pas. Dernière page disponible : ${totalPages}.`,
-      totalPages,
-      limitPerPage: limit,
-      currentPage: page,
       totalItems,
+      limitPerPage: limit,
+      totalPages,
+      currentPage: page,
       data: [],
     };
   }
@@ -26,10 +26,10 @@ async function paginationQuery(model, page = 1, limit = 10, select = null) {
   const data = await model.findMany(queryOptions);
 
   return {
-    totalPages,
-    limitPerPage: limit,
-    currentPage: page,
     totalItems,
+    limitPerPage: limit,
+    totalPages,
+    currentPage: page,
     data,
   };
 }

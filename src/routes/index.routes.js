@@ -1,4 +1,5 @@
 module.exports = {
   authRouter: require("./auth.routes"),
-  adminRouter: require("./users.routes"),
+  usersRouter: require("./users.routes"),
+  studentsRouter: require("./students.routes"),
 };

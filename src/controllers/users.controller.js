@@ -7,10 +7,23 @@ const emailValid = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const passwordValid = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
 // Liste des rôles valides
-const validRoles = ["admin", "agent", "parent"];
+const validRoles = ["admin", "agent"];
 
 // Add new user Admin or Agent
 async function addNewUser(req, res) {
+  const { email, password, role, name, ...extraFields } = req.body;
+  // Vérification qu'il n'y a pas de champs supplémentaires
+  if (Object.keys(extraFields).length > 0) {
+    return res.status(400).json({
+      message:
+        "Seuls 'email', 'password', 'role' et 'name' sont autorisés dans la requête.",
+    });
+  }
+  if (!email || !password || !role || !name) {
+    return res.status(400).json({
+      message: "Veuillez fournir l'email, le password, le role et le name.",
+    });
+  }
   const userReq = req.body;
 
   if (!validRoles.includes(userReq.role)) {
@@ -49,39 +62,39 @@ async function addNewUser(req, res) {
       });
     }
 
-    const newUser = await prisma.$transaction(async (prisma) => {
-      // Créer l'utilisateur
-      const user = await prisma.user.create({
-        data: userReq,
-      });
-
-      // Si le rôle est "parent", créer également un enregistrement dans la table Parent
-      let parent = null;
-      if (userReq.role === "parent") {
-        parent = await prisma.parent.create({
-          data: {
-            id: user.id,
-          },
-          include: {
-            user: true,
-          },
-        });
-      }
-
-      return { user, parent };
+    // Créeation de l'utilisateur
+    const user = await prisma.user.create({
+      data: userReq,
     });
 
-    // Suppression le mot de passe avant de renvoyer la réponse
-    delete newUser.user.password;
+    // Si le rôle est "parent", créer également un enregistrement dans la table Parent
+    // let parent = null;
+    // if (userReq.role === "parent") {
+    //   parent = await prisma.parent.create({
+    //     data: {
+    //       id: user.id,
+    //     },
+    //     include: {
+    //       user: true,
+    //     },
+    //   });
+    // }
 
-    if (userReq.role === "parent") {
-      delete newUser.parent.user.password;
-      return res.status(200).json({
-        user: newUser.parent.user,
-      });
-    }
+    //   return { user };
+    // });
+
+    // Suppression le mot de passe avant de renvoyer la réponse
+    delete user.password;
+
+    // if (userReq.role === "parent") {
+    //   delete newUser.parent.user.password;
+    //   return res.status(200).json({
+    //     user: newUser.parent.user,
+    //   });
+    // }
+
     return res.status(200).json({
-      user: newUser.user,
+      user,
     });
   } catch (error) {
     console.error("Erreur lors de la création de l'utilisateur :", error);
@@ -124,14 +137,7 @@ async function getAllUsers(req, res) {
   }
 }
 
-async function addNewStudent(req, res) {
-  const userReq = req.body;
-}
-
-async function getAllStudents(req, res) {}
-
 module.exports = {
   addNewUser,
-  addNewStudent,
   getAllUsers,
 };
