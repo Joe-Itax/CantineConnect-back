@@ -36,30 +36,12 @@ enum UserRole {
   agent
 }
 
-// Modèle pour les admins
-// model Admin {
-//   // id        String   @id @default(uuid())
-//   id        String   @id @unique
-//   user      User     @relation(fields: [id], references: [id])
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
-
 // Modèle pour les parents
 model Parent {
   id       String    @id @unique
   user     User      @relation(fields: [id], references: [id])
   students Student[] // Plusieurs enfants peuvent être associés à un parent
 }
-
-// Modèle pour les agents
-// model Agent {
-//   // id        String   @id @default(uuid())
-//   id        String   @id @unique
-//   user      User     @relation(fields: [id], references: [id])
-//   createdAt DateTime @default(now())
-//   updatedAt DateTime @updatedAt
-// }
 
 // Modèle pour TOUS les élèves de l'école
 model SchoolStudent {
@@ -100,16 +82,21 @@ model Student {
 
 // Modèle pour les abonnements
 model Abonnement {
-  id        Int      @id @default(autoincrement())
+  id        Int                 @id @default(autoincrement())
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
-  duration  Int // Durée de l'abonnement en jours (1, 3, 7, 30)
-  price     Float // Prix de l'abonnement (2000, 7000, 15000, 70000)
-  startDate DateTime @default(now())
-  endDate   DateTime // Date de fin calculée
-  status    String   @default("actif") // "actif", "expiré"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  student   Student             @relation(fields: [studentId], references: [id])
+  duration  Int? // Durée de l'abonnement en jours (1, 3, 7, 30)
+  price     Float? // Prix de l'abonnement (2000, 7000, 15000, 70000)
+  startDate DateTime?           @default(now())
+  endDate   DateTime? // Date de fin calculée
+  status    StatusSubscription? // "actif", "expiré", "null"
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+}
+
+enum StatusSubscription {
+  actif
+  expiré
 }
 
 // Modèle pour les repas

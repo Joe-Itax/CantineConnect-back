@@ -1,6 +1,9 @@
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('admin', 'parent', 'agent');
 
+-- CreateEnum
+CREATE TYPE "StatusSubscription" AS ENUM ('actif', 'expiré');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -48,13 +51,12 @@ CREATE TABLE "Student" (
 
 -- CreateTable
 CREATE TABLE "Abonnement" (
-    "id" SERIAL NOT NULL,
-    "studentId" TEXT NOT NULL,
-    "duration" INTEGER NOT NULL,
-    "price" DOUBLE PRECISION NOT NULL,
-    "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "endDate" TIMESTAMP(3) NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'actif',
+    "id" TEXT NOT NULL,
+    "duration" INTEGER,
+    "price" DOUBLE PRECISION,
+    "startDate" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+    "endDate" TIMESTAMP(3),
+    "status" "StatusSubscription",
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -136,7 +138,7 @@ ALTER TABLE "Student" ADD CONSTRAINT "Student_schoolStudentId_fkey" FOREIGN KEY 
 ALTER TABLE "Student" ADD CONSTRAINT "Student_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Parent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Abonnement" ADD CONSTRAINT "Abonnement_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Abonnement" ADD CONSTRAINT "Abonnement_id_fkey" FOREIGN KEY ("id") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Repas" ADD CONSTRAINT "Repas_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

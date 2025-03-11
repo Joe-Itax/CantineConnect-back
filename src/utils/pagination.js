@@ -1,4 +1,10 @@
-async function paginationQuery(model, page = 1, limit = 10, select = null) {
+async function paginationQuery(
+  model,
+  page = 1,
+  limit = 10,
+  // select = null,
+  options = {}
+) {
   page = Math.max(1, parseInt(page) || 1);
   limit = Math.max(1, parseInt(limit) || 10);
   const skip = (page - 1) * limit;
@@ -20,8 +26,8 @@ async function paginationQuery(model, page = 1, limit = 10, select = null) {
   }
 
   //Récupération des éléments paginés
-  const queryOptions = { skip, take: limit };
-  if (select) queryOptions.select = select;
+  const queryOptions = { skip, take: limit, ...options };
+  // if (select) queryOptions.select = select;
 
   const data = await model.findMany(queryOptions);
 
