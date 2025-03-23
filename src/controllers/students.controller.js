@@ -310,15 +310,15 @@ async function buySubscription(req, res) {
       message: "Seuls 'duration'et 'price' sont autorisés dans la requête.",
     });
   }
-  if (!duration || !price) {
+  if (
+    !duration ||
+    !price ||
+    !(typeof duration === "number") ||
+    !(typeof price === "number")
+  ) {
     return res.status(400).json({
-      message: "Veuillez fournir la duration  de l'abonnement et le price.",
-    });
-  }
-
-  if (!(typeof duration === "number") || !(typeof price === "number")) {
-    return res.status(400).json({
-      message: "Veuillez fournir la durée et le prix en tant que nombres.",
+      message:
+        "Seuls 'duration'et 'price' sont autorisés dans la requête. Et veuillez les fournir en tant que nombres.",
     });
   }
 

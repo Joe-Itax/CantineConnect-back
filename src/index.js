@@ -20,9 +20,7 @@ const {
   usersRouter,
   studentsRouter,
 } = require("./routes/index.routes");
-// const usersRouter = require("./routes/users.routes");
 const { serialiseDeserialiseUser } = require("./utils");
-// const studentsRouter = require("./routes/students.routes");
 
 /**
  * ------------------  GENERAL SETUP  ---------------
@@ -70,7 +68,22 @@ app.use(function (req, res, next) {
  * -------------- SESSION SETUP ----------------
  */
 // Initialize client.
-let redisClient = createClient({ url: process.env.REDIS_URL });
+let redisClient = createClient({
+  url: process.env.REDIS_URL,
+  socket: {
+    reconnectStrategy: (retries) => {
+      if (retries > 10) {
+        console.log("Trop de tentatives de reconnexion, abandon...");
+        return new Error("Trop de tentatives de reconnexion");
+      }
+      // Attendre 30 seconde avant de réessayer
+      return 30000;
+    },
+    connectTimeout: 30000, // 30 secondes
+    tls: true,
+    rejectUnauthorized: false, // Désactivation de la validation du certificat
+  },
+});
 (async () => {
   try {
     await redisClient.connect();
@@ -80,6 +93,18 @@ let redisClient = createClient({ url: process.env.REDIS_URL });
     console.error(err);
   }
 })();
+
+redisClient.on("error", (err) => {
+  console.error("Erreur Redis:", err);
+});
+
+redisClient.on("reconnecting", () => {
+  console.log("Reconnexion à Redis...");
+});
+
+redisClient.on("end", () => {
+  console.log("Connexion Redis fermée");
+});
 
 // Initialize store.
 let redisStore = new RedisStore({

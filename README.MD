@@ -4,7 +4,7 @@
 
 - Node.js avec Express.js
 - PostgreSQL avec Prisma ORM
-- JWT-Passport pour l’authentification
+- passport, passport-local, express-session & Redis pour l’authentification
 - Cloudinary pour stocker les images
 - Cors pour bloquer les origines inconnues
 
@@ -23,8 +23,7 @@
 ```json
 {
   "email": "parent@example.com",
-  "password": "motdepasse",
-  "role": "parent"
+  "password": "motdepasse"
 }
 ```
 
@@ -35,16 +34,19 @@
 ```json
 {
   "message": "Connexion réussie",
-  "token": "jwt_token",
+  "isAuthenticated": true,
   "user": {
-    "id": 12,
+    "id": "cfe3923j-9812-fd86-hd97-sj980Zn6dg62",
+    "email": "parent@example.com",
     "role": "parent",
-    "name": "Jean Dupont"
+    "name": "John Doe",
+    "createdAt": "2025-03-11T14:14:37.403Z",
+    "updatedAt": "2025-03-11T14:14:37.403Z"
   }
 }
 ```
 
-**403 Forbidden : Email ou mot de passe incorrect.**
+**401 Unauthorized : Email ou mot de passe incorrect.**
 
 ```json
 {
@@ -75,11 +77,52 @@
 }
 ```
 
-**401 Unauthorized : Utilisateur non identifié/connecté.**
+**401 Unauthorized : Utilisateur non authentifié.**
 
 ```json
 {
-  "error": "Vous n'êtes pas autorisé à effectuer cette tâche."
+  "error": "Accès refusé ! Utilisateur non connecté."
+}
+```
+
+**500 Internal Server Error : Bug backend.**
+
+```json
+{
+  "error": "Erreur serveur"
+}
+```
+
+### Etat d'un Utilisateur
+
+#### Endpoint
+
+`GET /api/auth/user-state`
+
+#### Réponses possibles
+
+**200 OK : Etat de l'utilisateur.**
+
+```json
+{
+  "isAuthenticated": true,
+  "user": {
+    "id": "cfdbnc743b-7977-4z9f-8dd5-34501cej494c",
+    "email": "email@gmail.com",
+    "role": "role",
+    "name": "John Doe",
+    "createdAt": "2025-03-11T14:14:37.403Z",
+    "updatedAt": "2025-03-11T14:14:37.403Z"
+  }
+}
+```
+
+**401 Unauthorized : Utilisateur non authentifié.**
+
+```json
+{
+  "message": "Accès refusé ! Utilisateur non connecté.",
+  "isAuthenticated": false
 }
 ```
 
@@ -99,9 +142,7 @@
 
 #### Endpoint
 
-```http
-  GET /api/students?page=1&limit=10
-```
+`GET /api/students`
 
 | Paramètre | Type     | Description        | Défaut |
 | --------- | -------- | ------------------ | ------ |
@@ -113,30 +154,67 @@
 **200 OK: Liste des élèves.**
 
 ```json
-[
-  {
-    "id": 1,
-    "name": "Paul Mbuya",
-    "class": "6ème B",
-    "matriculeHashe": "cfgdhe-tydevhazedfvhj-vdgh67UIB-ejhb3hbbHD",
-    "abonnement": {
-      "status": "actif",
-      "duration": 3, // 3 jours
-      "expiration": "2025-03-10"
+{
+  "message": "Liste des élèves enregistré à la Cantine",
+  "totalItems": 6, //Total des items récuperé
+  "limitPerPage": 10, //Limites des items par pages
+  "totalPages": 3, // Total De pages trouvées,
+  "currentPage": 1, //La page actuelle
+  "data": [
+    {
+      "id": "24947fa0-9229-4b0b-b6f5-dj7638f753d0",
+      "schoolStudent": {
+        "id": "08253a8e-c90e-4742-a6cc-ebf5djzs70e5",
+        "name": "René Leroux",
+        "class": "3ème Humanités Sciences Sociales",
+        "gender": "M",
+        "matricule": "2025/87",
+        "createdAt": "2025-03-11T14:15:33.277Z",
+        "updatedAt": "2025-03-11T14:15:33.277Z"
+      },
+      "parent": {
+        "id": "04a7f765-3df4-4942-b23f-3fdiued89f86c",
+        "user": {
+          "id": "04a7f765-3df4-4942-b23f-3fdiued89f86c",
+          "email": "parent1@gmail.com",
+          "name": "Parent Name1"
+        }
+      },
+      "abonnements": [
+        {
+          "id": 7,
+          "studentId": "24947fa0-9229-4b0b-b6f5-dj7638f753d0",
+          "duration": 7,
+          "price": 5000,
+          "startDate": "2025-03-11T18:05:59.157Z",
+          "endDate": "2025-03-18T18:05:59.157Z",
+          "status": "actif",
+          "createdAt": "2025-03-11T18:02:06.671Z",
+          "updatedAt": "2025-03-11T18:05:59.164Z"
+        }
+      ]
     },
-    "historiqueRepas": [
-      { "date": "2025-03-01", "status": true },
-      { "date": "2025-03-02", "status": false }
-    ]
-  }
-]
+    {
+      // Le second ... et ainsi de suite
+    }
+  ]
+}
 ```
 
-**401 Unauthorized : L’utilisateur n’a pas les permissions.**
+**401 Unauthorized : L’utilisateur n’est pas connecté.**
 
 ```json
 {
-  "error": "Accès refusé"
+  "message": "Accès refusé ! Utilisateur non connecté.",
+  "isAuthenticated": false
+}
+```
+
+**403 Forbidden : L’utilisateur n’a pas les permissions requises.**
+
+```json
+{
+  "message": "Accès refusé"
 }
 ```
 
@@ -151,11 +229,11 @@
 ### Détails d'un élève spécifique
 
 **Endpoint**:
-`GET /api/students/${id}`
+`GET /api/students/${studentId}`
 
-| Paramètre | Type     | Description                 |
-| :-------- | :------- | :-------------------------- |
-| `id`      | `string` | **Required**. Id de l'élève |
+| Paramètre   | Type     | Description                 |
+| :---------- | :------- | :-------------------------- |
+| `studentId` | `string` | **Required**. Id de l'élève |
 
 #### Réponses possibles
 
@@ -163,11 +241,33 @@
 
 ```json
 {
-  "id": 1,
-  "name": "Paul Mbuya",
-  "class": "6ème B",
-  "matriculeHashe": "cfgdhe-tydevhazedfvhj-vdgh67UIB-ejhb3hbbHD",
-  "abonnement": {}
+  "message": "Détails de l'élève",
+  "student": {
+    "id": "shdk887g-16c7-4693-a601-14cc2f1c0503",
+    "name": "John Doe",
+    "class": "8ème Générale",
+    "gender": "F",
+    "matricule": "2025/66",
+    "createdAt": "2025-03-11T14:15:33.277Z",
+    "updatedAt": "2025-03-11T14:15:33.277Z",
+    "Student": {
+      "id": "4ef94594-f71c-4f76-98f1-fae08745f253",
+      "schoolStudentId": "shdk887g-16c7-4693-a601-14cc2f1c0503",
+      "matriculeHashe": "eiefeiefh2Lq.3ibHSfAEnfC5reEY74EwxMxFQW",
+      "parentId": "04a7f765-3df4-4942-b23f-3fbe4c59f86c",
+      "createdAt": "2025-03-11T14:28:31.898Z",
+      "updatedAt": "2025-03-11T14:28:31.898Z"
+    }
+  }
+}
+```
+
+**401 Unauthorized : L’utilisateur n’est pas connecté.**
+
+```json
+{
+  "message": "Accès refusé ! Utilisateur non connecté.",
+  "isAuthenticated": false
 }
 ```
 
@@ -176,6 +276,14 @@
 ```json
 {
   "error": "Accès refusé"
+}
+```
+
+**404 Not Found : L'élève n'a pas été trouvé.**
+
+```json
+{
+  "message": "Aucun élève trouvé avec cet identifiant."
 }
 ```
 
@@ -192,11 +300,11 @@
 ### Achat d’un abonnement (Par le Parent)
 
 **Endpoint**:
-`POST /api/students/${matriculeHashe}/abonnements`
+`POST /api/students/${studentId}/subscription`
 
-| Paramètre        | Type     | Description                             |
-| :--------------- | :------- | :-------------------------------------- |
-| `matriculeHashe` | `string` | **Required**. matriculeHashé de l'élève |
+| Paramètre   | Type     | Description                 |
+| :---------- | :------- | :-------------------------- |
+| `studentId` | `string` | **Required**. id de l'élève |
 
 **Body attendu (JSON)**:
 
@@ -218,21 +326,42 @@
 
 ```json
 {
-  "message": "Abonnement activé pour 3 jours",
-  "user": {
-    "id": 1,
-    "name": "Paul Mbuya",
-    "class": "6ème B",
-    "abonnement": {}
+  "message": "Abonnement acheté avec succès.",
+  "data": {
+    "abonnement": {
+      "id": 8,
+      "studentId": "jdi883ja-92f5-4e8b-8eef-79338797351d",
+      "duration": 5,
+      "price": 3000,
+      "startDate": "2025-03-12T09:44:43.713Z",
+      "endDate": "2025-03-17T09:44:43.713Z",
+      "status": "actif",
+      "createdAt": "2025-03-12T09:44:43.821Z",
+      "updatedAt": "2025-03-12T09:44:43.821Z"
+    },
+    "notification": {
+      "id": 18,
+      "studentId": "jdi883ja-92f5-4e8b-8eef-79338797351d",
+      "message": "Un nouvel abonnement de 5 jours a été acheté pour Léna Charpentier.",
+      "read": false,
+      "type": "abonnement",
+      "details": {
+        "price": 3000,
+        "endDate": "2025-03-17T09:44:43.713Z",
+        "duration": 5
+      },
+      "createdAt": "2025-03-12T09:44:43.846Z",
+      "updatedAt": "2025-03-12T09:44:43.846Z"
+    }
   }
 }
 ```
 
-**400 Bad Request : Durée absente ou invalide.**
+**400 Bad Request : Durée et prix absente ou invalide.**
 
 ```json
 {
-  "error": "Durée invalide"
+  "message": "Seuls 'duration'et 'price' sont autorisés dans la requête. Et veuillez les fournir en tant que nombres."
 }
 ```
 
@@ -256,7 +385,7 @@
 
 ```json
 {
-  "error": "Erreur serveur"
+  "message": "Une erreur est survenue lors de l'achat de l'abonnement."
 }
 ```
 
