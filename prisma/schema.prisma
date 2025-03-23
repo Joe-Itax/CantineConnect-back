@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,21 +7,93 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modèle pour les utilisateurs (Parents, Agents, Admins)
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
-  role      UserRole // "parent", "agent", "admin"
+  role      UserRole
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  parent    Parent?
 
-  // Relations
-  parent Parent?
-
-  // Index sur le champ email pour accélérer les recherches
   @@index([email])
+}
+
+model Parent {
+  id       String    @id @unique
+  user     User      @relation(fields: [id], references: [id])
+  students Student[]
+}
+
+model SchoolStudent {
+  id        String   @id @default(uuid())
+  name      String
+  class     String
+  gender    String
+  matricule String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Student   Student?
+
+  @@index([matricule])
+  @@index([id])
+}
+
+model Student {
+  id              String         @id @default(uuid())
+  schoolStudentId String         @unique
+  matriculeHashe  String         @unique
+  parentId        String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  abonnements     Abonnement[]
+  notifications   Notification[]
+  repas           Repas[]
+  parent          Parent         @relation(fields: [parentId], references: [id])
+  schoolStudent   SchoolStudent  @relation(fields: [schoolStudentId], references: [id])
+
+  @@index([id])
+  @@index([schoolStudentId])
+  @@index([matriculeHashe])
+  @@index([parentId])
+}
+
+model Abonnement {
+  duration  Int?
+  price     Float?
+  startDate DateTime?           @default(now())
+  endDate   DateTime?
+  status    StatusSubscription?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  studentId String
+  id        Int                 @id @default(autoincrement())
+  student   Student             @relation(fields: [studentId], references: [id])
+}
+
+model Repas {
+  id        Int      @id @default(autoincrement())
+  studentId String
+  date      DateTime @default(now())
+  status    Boolean?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  student   Student  @relation(fields: [studentId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  studentId String
+  message   String
+  read      Boolean  @default(false)
+  type      String
+  details   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  student   Student  @relation(fields: [studentId], references: [id])
+
+  @@index([id])
 }
 
 enum UserRole {
@@ -36,91 +102,7 @@ enum UserRole {
   agent
 }
 
-// Modèle pour les parents
-model Parent {
-  id       String    @id @unique
-  user     User      @relation(fields: [id], references: [id])
-  students Student[] // Plusieurs enfants peuvent être associés à un parent
-}
-
-// Modèle pour TOUS les élèves de l'école
-model SchoolStudent {
-  id        String   @id @default(uuid())
-  name      String
-  class     String
-  gender    String
-  matricule String   @unique // Matricule en dur (non hashé)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  Student   Student?
-
-  // Index sur les champs matricule et id pour accélérer les recherches
-  @@index([matricule])
-  @@index([id])
-}
-
-// Modèle pour les élèves enregistrés à la cantine
-model Student {
-  id              String         @id @default(uuid())
-  schoolStudentId String         @unique // Référence à l'élève dans SchoolStudent
-  schoolStudent   SchoolStudent  @relation(fields: [schoolStudentId], references: [id])
-  matriculeHashe  String         @unique // Matricule hashé pour le QR Code
-  parentId        String
-  parent          Parent         @relation(fields: [parentId], references: [id])
-  abonnements     Abonnement[]
-  repas           Repas[]
-  notifications   Notification[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  // Index sur les champs fréquemment interrogés
-  @@index([id])
-  @@index([schoolStudentId])
-  @@index([matriculeHashe])
-  @@index([parentId])
-}
-
-// Modèle pour les abonnements
-model Abonnement {
-  id        Int                 @id @default(autoincrement())
-  studentId String
-  student   Student             @relation(fields: [studentId], references: [id])
-  duration  Int? // Durée de l'abonnement en jours (1, 3, 7, 30)
-  price     Float? // Prix de l'abonnement (2000, 7000, 15000, 70000)
-  startDate DateTime?           @default(now())
-  endDate   DateTime? // Date de fin calculée
-  status    StatusSubscription? // "actif", "expiré", "null"
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-}
-
 enum StatusSubscription {
   actif
-  expiré
-}
-
-// Modèle pour les repas
-model Repas {
-  id        Int      @id @default(autoincrement())
-  studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
-  date      DateTime @default(now())
-  status    Boolean? // true = repas pris, false = repas non pris, null = week-end ou absence
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Modèle pour les notifications
-model Notification {
-  id        Int      @id @default(autoincrement())
-  studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
-  message   String
-  read      Boolean  @default(false) // true = lue, false = non lue
-  type      String // "abonnement", "repas", "expiration"
-  details   Json? // Détails supplémentaires (ex: montant, date d'expiration)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([id])
+  // expiré
 }
