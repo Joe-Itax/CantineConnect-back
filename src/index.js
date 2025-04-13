@@ -122,7 +122,7 @@ app.use(
     cookie: {
       httpOnly: true, // Empêche l'accès au cookie via JavaScript (protection XSS)
       secure: process.env.NODE_ENV === "production", // Activer en HTTPS (prod)
-      sameSite: "strict", // Protection contre les attaques CSRF
+      sameSite: "none",
       maxAge: 1000 * 60 * 60 * 24 * 7, // Durée de vie du cookie (7 jours)
     },
   })
