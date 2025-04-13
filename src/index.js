@@ -45,7 +45,8 @@ const corsOptions = {
   },
   credentials: true, // Nécessaire pour utiliser des cookies avec CORS
   methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["set-cookie"],
   optionsSuccessStatus: 200,
 };
 
@@ -122,7 +123,7 @@ app.use(
     cookie: {
       httpOnly: true, // Empêche l'accès au cookie via JavaScript (protection XSS)
       secure: process.env.NODE_ENV === "production", // Activer en HTTPS (prod)
-      sameSite: "none",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7, // Durée de vie du cookie (7 jours)
     },
   })
