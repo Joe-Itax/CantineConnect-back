@@ -22,6 +22,8 @@ const {
 } = require("./routes/index.routes");
 const { serialiseDeserialiseUser } = require("./utils");
 
+const prismaErrorHandler = require("./middlewares/prismaErrorHandler.middleware");
+
 /**
  * ------------------  GENERAL SETUP  ---------------
  */
@@ -80,7 +82,7 @@ let redisClient = createClient({
       return 30000;
     },
     connectTimeout: 30000, // 30 secondes
-    tls: true,
+    tls: process.env.NODE_ENV === "production",
     rejectUnauthorized: false, // Désactivation de la validation du certificat
   },
 });
@@ -148,6 +150,8 @@ app.use(passport.session());
 require("./config/passport-strategies/local");
 serialiseDeserialiseUser(passport);
 
+require("./utils/dbKeepAlive");
+
 /**
  * -------------- ROUTES ----------------
  */
@@ -159,6 +163,11 @@ app.get("/", (req, res) => {
 app.use(authBaseURI, authRouter);
 app.use(usersBaseURI, usersRouter);
 app.use(studentsBaseURI, studentsRouter);
+
+/**
+ * Middleware d’erreur Prisma
+ */
+app.use(prismaErrorHandler);
 
 /**
  * -------------- RUN SERVER ----------------
