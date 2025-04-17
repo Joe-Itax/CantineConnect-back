@@ -44,9 +44,15 @@ const corsOptions = {
     }
   },
   credentials: true, // Nécessaire pour utiliser des cookies avec CORS
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  exposedHeaders: ["set-cookie"],
+  exposedHeaders: ['set-cookie', 'x-auth-token'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Set-Cookie'
+    ],
   optionsSuccessStatus: 200,
 };
 
@@ -116,6 +122,7 @@ let redisStore = new RedisStore({
 });
 app.use(
   session({
+    name: "connect.sid",
     store: redisStore,
     secret: process.env.SESSION_SECRET, // Clé secrète pour signer les cookies
     resave: false, // Ne pas sauvegarder la session si elle n'est pas modifiée
