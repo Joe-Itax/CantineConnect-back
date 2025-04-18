@@ -12,6 +12,8 @@ const { createClient } = require("redis");
 const corsLogger  = require("./middlewares/corsLogger.middleware");
 const { forceCors } = require("./middlewares/forceCors.middleware");
 const responseLogger = require("./middlewares/responseLogger");
+const securityMiddleware  = require("./middlewares/security.middleware")
+const isProduction = process.env.NODE_ENV === "production";
 
 const {
   authBaseURI,
@@ -61,13 +63,17 @@ const corsOptions = {
     ],
   optionsSuccessStatus: 200,
 };
+
+app.set('trust proxy', 1);
+
+app.use(securityMiddleware());
 // 🥇 Middleware pour forcer les headers CORS
-app.use(forceCors);
+// app.use(forceCors);
 app.use(cookieParser());
 app.use(corsLogger);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // Autorise les requêtes OPTIONS pour toutes les routes
-app.set('trust proxy', 1);
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -107,7 +113,7 @@ let redisClient = createClient({
       return 30000;
     },
     connectTimeout: 30000, // 30 secondes
-    tls: process.env.NODE_ENV === "production",
+    tls: isProduction,
     rejectUnauthorized: false, // Désactivation de la validation du certificat
   },
 });
@@ -147,8 +153,8 @@ app.use(
     saveUninitialized: false, // Ne pas créer de session pour les requêtes sans données de session
     cookie: {
       httpOnly: true, // Empêche l'accès au cookie via JavaScript (protection XSS)
-      secure: process.env.NODE_ENV === "production", // Activer en HTTPS (prod)
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: isProduction, // Activer en HTTPS (prod)
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7, // Durée de vie du cookie (7 jours)
     },
   })
