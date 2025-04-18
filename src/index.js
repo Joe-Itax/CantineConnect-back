@@ -35,8 +35,8 @@ const allowedOrigins = [
   `http://localhost:${PORT}`,
   `http://localhost:3000`,
   `http://localhost:3001`,
-  `https://cantine-connect-dashboard.vercel.app/`,
-  `https://cantine-connect.vercel.app/`
+  `https://cantine-connect-dashboard.vercel.app`,
+  `https://cantine-connect.vercel.app`
 ];
 const corsOptions = {
   origin: function (origin, callback) {
