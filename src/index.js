@@ -10,6 +10,7 @@ const session = require("express-session");
 const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
 const corsLogger  = require("./middlewares/corsLogger.middleware");
+const { forceCors } = require("./middlewares/forceCors.middleware");
 
 const {
   authBaseURI,
@@ -59,7 +60,8 @@ const corsOptions = {
     ],
   optionsSuccessStatus: 200,
 };
-
+// 🥇 Middleware pour forcer les headers CORS
+app.use(forceCors);
 app.use(cookieParser());
 app.use(corsLogger);
 app.use(cors(corsOptions));
