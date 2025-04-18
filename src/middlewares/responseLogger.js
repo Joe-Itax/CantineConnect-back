@@ -4,6 +4,7 @@ function responseLogger(req, res, next) {
     res.send = function (body) {
       console.log("----------- REPONSE ENVOYEE -----------");
       console.log("URL:", req.originalUrl);
+      console.log("session: ", req.session);
       console.log("Status:", res.statusCode);
       console.log("Headers:", res.getHeaders());
       console.log("Body:", typeof body === "object" ? JSON.stringify(body) : body);
