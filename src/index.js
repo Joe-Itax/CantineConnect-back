@@ -67,6 +67,7 @@ app.use(cookieParser());
 app.use(corsLogger);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // Autorise les requêtes OPTIONS pour toutes les routes
+app.set('trust proxy', 1);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
