@@ -66,7 +66,7 @@ const corsOptions = {
 
 app.set('trust proxy', 1);
 
-app.use(securityMiddleware());
+app.use(...securityMiddleware());
 // 🥇 Middleware pour forcer les headers CORS
 // app.use(forceCors);
 app.use(cookieParser());
@@ -75,24 +75,24 @@ app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // Autorise les requêtes OPTIONS pour toutes les routes
 
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(function (req, res, next) {
-  res.header(
-    "Access-Control-Allow-Headers",
-    "x-access-token, Origin, Content-Type, Authorization, X-Requested-With, Accept, Set-Cookie"
-  );
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET,POST,PUT,DELETE,OPTIONS"
-  );
-  res.header(
-    "Access-Control-Expose-Headers",
-    "Set-Cookie, X-Auth-Token"
-  );
-  next();
-});
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
+// app.use(function (req, res, next) {
+//   res.header(
+//     "Access-Control-Allow-Headers",
+//     "x-access-token, Origin, Content-Type, Authorization, X-Requested-With, Accept, Set-Cookie"
+//   );
+//   res.header("Access-Control-Allow-Credentials", "true");
+//   res.header(
+//     "Access-Control-Allow-Methods",
+//     "GET,POST,PUT,DELETE,OPTIONS"
+//   );
+//   res.header(
+//     "Access-Control-Expose-Headers",
+//     "Set-Cookie, X-Auth-Token"
+//   );
+//   next();
+// });
 
 // Servir des fichiers statiques depuis le répertoire 'uploads/images'
 // app.use("/uploads/images", express.static("uploads/images"));
