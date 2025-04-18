@@ -9,6 +9,7 @@ const passport = require("passport");
 const session = require("express-session");
 const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
+const corsLogger  = require("./middlewares/corsLogger.middleware");
 
 const {
   authBaseURI,
@@ -42,7 +43,8 @@ const corsOptions = {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`Not Allowed By CORS`, { cause: origin }));
+      console.error(`Blocked CORS request from origin: ${origin}`);
+      callback(null, false);
     }
   },
   credentials: true, // Nécessaire pour utiliser des cookies avec CORS
@@ -59,6 +61,7 @@ const corsOptions = {
 };
 
 app.use(cookieParser());
+app.use(corsLogger);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // Autorise les requêtes OPTIONS pour toutes les routes
 
