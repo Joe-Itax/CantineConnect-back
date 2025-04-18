@@ -27,5 +27,5 @@ function forceCors(req, res, next) {
     next();
   }
   
-  module.exports = forceCors;
+  module.exports = {forceCors};
   
