@@ -11,6 +11,7 @@ const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
 const corsLogger  = require("./middlewares/corsLogger.middleware");
 const { forceCors } = require("./middlewares/forceCors.middleware");
+const responseLogger = require("./middlewares/responseLogger");
 
 const {
   authBaseURI,
@@ -183,6 +184,8 @@ require("./utils/dbKeepAlive");
 app.get("/", (req, res) => {
   res.send("Hello, la racine de l'app Cantine Connect");
 });
+
+app.use(responseLogger);
 
 app.use(authBaseURI, authRouter);
 app.use(usersBaseURI, usersRouter);
