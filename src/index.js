@@ -10,8 +10,7 @@ const session = require("express-session");
 const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
 const corsLogger  = require("./middlewares/corsLogger.middleware");
-const { forceCors } = require("./middlewares/forceCors.middleware");
-const responseLogger = require("./middlewares/responseLogger");
+// const responseLogger = require("./middlewares/responseLogger");
 const securityMiddleware  = require("./middlewares/security.middleware")
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -67,35 +66,10 @@ const corsOptions = {
 app.set('trust proxy', 1);
 
 app.use(...securityMiddleware());
-// 🥇 Middleware pour forcer les headers CORS
-// app.use(forceCors);
 app.use(cookieParser());
 app.use(corsLogger);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // Autorise les requêtes OPTIONS pour toutes les routes
-
-
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
-// app.use(function (req, res, next) {
-//   res.header(
-//     "Access-Control-Allow-Headers",
-//     "x-access-token, Origin, Content-Type, Authorization, X-Requested-With, Accept, Set-Cookie"
-//   );
-//   res.header("Access-Control-Allow-Credentials", "true");
-//   res.header(
-//     "Access-Control-Allow-Methods",
-//     "GET,POST,PUT,DELETE,OPTIONS"
-//   );
-//   res.header(
-//     "Access-Control-Expose-Headers",
-//     "Set-Cookie, X-Auth-Token"
-//   );
-//   next();
-// });
-
-// Servir des fichiers statiques depuis le répertoire 'uploads/images'
-// app.use("/uploads/images", express.static("uploads/images"));
 
 /**
  * -------------- SESSION SETUP ----------------
@@ -153,15 +127,12 @@ app.use(
     saveUninitialized: false, // Ne pas créer de session pour les requêtes sans données de session
     cookie: {
       httpOnly: true, // Empêche l'accès au cookie via JavaScript (protection XSS)
-      secure: isProduction, // Activer en HTTPS (prod)
+      secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7, // Durée de vie du cookie (7 jours)
     },
   })
 );
-// Passer l'instance d'Express aux contrôleurs
-// const { checkAuthStatus } = require("./controllers/auth.controllers");
-// app.get("/status", checkAuthStatus);
 
 const prisma = new PrismaClient({
   datasources: {
@@ -192,7 +163,7 @@ app.get("/", (req, res) => {
   res.send("Hello, la racine de l'app Cantine Connect");
 });
 
-app.use(responseLogger);
+// app.use(responseLogger);
 
 app.use(authBaseURI, authRouter);
 app.use(usersBaseURI, usersRouter);
