@@ -108,13 +108,15 @@ async function getAllUsers(req, res) {
   try {
     const { page, limit } = req.query;
     const result = await paginationQuery(prisma.user, page, limit, {
-      id: true,
-      email: true,
-      role: true,
-      name: true,
-      createdAt: true,
-      updatedAt: true,
-      parent: true,
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        parent: true,
+      }
     });
 
     if (result.error) {
