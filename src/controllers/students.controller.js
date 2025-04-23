@@ -508,7 +508,11 @@ async function searchSchoolStudent(req, res) {
 
     const result = await paginationQuery(prisma.schoolStudent, page, limit, {
       where: {
-        OR: [{ email: { contains: query } }, { name: { contains: query } }],
+         OR: [
+          { name: { contains: query, mode: "insensitive" } }, // recherche insensible à la casse
+          { matricule: { contains: query, mode: "insensitive" } },
+          { class: { contains: query, mode: "insensitive" } },
+        ],
       },
     });
     return res.status(200).json({
