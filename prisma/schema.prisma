@@ -21,77 +21,78 @@ model User {
 }
 
 model Parent {
-  id       String    @id @unique
-  user     User      @relation(fields: [id], references: [id])
-  students Student[]
+  id              String           @id @unique
+  user            User             @relation(fields: [id], references: [id])
+  canteenStudents CanteenStudent[]
 }
 
-model SchoolStudent {
-  id        String   @id @default(uuid())
-  name      String
-  class     String
-  gender    String
-  matricule String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  Student   Student?
+model EnrolledStudent {
+  id                    String          @id @default(uuid())
+  name                  String
+  class                 String
+  gender                String
+  matricule             String          @unique
+  isRegisteredToCanteen Boolean         @default(false)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  canteenStudent        CanteenStudent?
 
   @@index([matricule])
   @@index([id])
 }
 
-model Student {
-  id              String         @id @default(uuid())
-  schoolStudentId String         @unique
-  matriculeHashe  String         @unique
-  parentId        String
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  abonnements     Abonnement[]
-  notifications   Notification[]
-  repas           Repas[]
-  parent          Parent         @relation(fields: [parentId], references: [id])
-  schoolStudent   SchoolStudent  @relation(fields: [schoolStudentId], references: [id])
+model CanteenStudent {
+  id                String          @id @default(uuid())
+  enrolledStudentId String          @unique
+  matriculeHashe    String          @unique
+  parentId          String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  abonnements       Abonnement[]
+  notifications     Notification[]
+  repas             Repas[]
+  parent            Parent          @relation(fields: [parentId], references: [id])
+  enrolledStudent   EnrolledStudent @relation(fields: [enrolledStudentId], references: [id])
 
   @@index([id])
-  @@index([schoolStudentId])
+  @@index([enrolledStudentId])
   @@index([matriculeHashe])
   @@index([parentId])
 }
 
 model Abonnement {
-  duration  Int?
-  price     Float?
-  startDate DateTime?           @default(now())
-  endDate   DateTime?
-  status    StatusSubscription?
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-  studentId String
-  id        Int                 @id @default(autoincrement())
-  student   Student             @relation(fields: [studentId], references: [id])
+  duration         Int?
+  price            Float?
+  startDate        DateTime?           @default(now())
+  endDate          DateTime?
+  status           StatusSubscription?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  canteenStudentId String
+  id               Int                 @id @default(autoincrement())
+  canteenStudent   CanteenStudent      @relation(fields: [canteenStudentId], references: [id])
 }
 
 model Repas {
-  id        Int      @id @default(autoincrement())
-  studentId String
-  date      DateTime @default(now())
-  status    Boolean?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student   Student  @relation(fields: [studentId], references: [id])
+  id               Int            @id @default(autoincrement())
+  canteenStudentId String
+  date             DateTime       @default(now())
+  status           Boolean?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  student          CanteenStudent @relation(fields: [canteenStudentId], references: [id])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  studentId String
-  message   String
-  read      Boolean  @default(false)
-  type      String
-  details   Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student   Student  @relation(fields: [studentId], references: [id])
+  id               Int            @id @default(autoincrement())
+  canteenStudentId String
+  message          String
+  read             Boolean        @default(false)
+  type             String
+  details          Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  canteenStudent   CanteenStudent @relation(fields: [canteenStudentId], references: [id])
 
   @@index([id])
 }
@@ -104,5 +105,5 @@ enum UserRole {
 
 enum StatusSubscription {
   actif
-  // expiré
+  expiré
 }

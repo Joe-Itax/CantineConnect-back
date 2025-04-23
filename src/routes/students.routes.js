@@ -1,16 +1,17 @@
 const { Router } = require("express");
 const {
-  addNewStudent,
-  getAllStudents,
-  getOneStudent,
-  getStudentsFromParent,
-  buySubscription,
-  getAllNotifOfStudent,
-  getAllSchoolStudents,
+  addNewCanteenStudent,
+  removeStudentFromCanteen,
+  getAllEnrolledStudents,
+  getAllCanteenStudents,
+  getEnrolledStudentById,
+  getCanteenStudentsLinkedToAParent,
+  buySubscriptionForACanteenStudent,
+  getAllNotifOfAcanteenStudent,
   markAllNotifsAsRead,
   markOneNotifAsRead,
-  searchSchoolStudent,
-  scanQRStudent,
+  searchEnrolledStudent,
+  scanQRCodeForACanteenStudent,
   getMealHistory,
 } = require("../controllers/students.controller");
 
@@ -19,78 +20,120 @@ const { authMiddleware } = require("../middlewares/auth.middleware");
 
 const studentsRouter = Router();
 
-studentsRouter.get("/", authMiddleware, hasRole("admin"), getAllStudents);
+// === ENROLLED STUDENTS (Élèves inscrits à l'école, pas encore à la cantine) ===
 
-studentsRouter.post("/add", hasRole("admin"), addNewStudent);
-
+// Lister tous les élèves inscrits
 studentsRouter.get(
-  "/school-students",
+  "/enrolled",
   authMiddleware,
   hasRole("admin"),
-  getAllSchoolStudents
+  getAllEnrolledStudents
 );
 
+// Chercher un élève par recherche (name, matricule, etc.)
 studentsRouter.get(
-  "/by-parent",
+  "/enrolled/search",
+  authMiddleware,
+  hasRole("admin"),
+  searchEnrolledStudent
+);
+
+// Obtenir les détails d'un élève inscrit
+studentsRouter.get(
+  "/enrolled/:enrolledStudentId",
   authMiddleware,
   hasRole(["admin", "parent"]),
-  getStudentsFromParent
+  getEnrolledStudentById
 );
 
+// === CANTEEN STUDENTS (Élèves enregistrés à la cantine) ===
+
+// Lister tous les élèves enregistrés à la cantine
+studentsRouter.get(
+  "/canteen",
+  authMiddleware,
+  hasRole("admin"),
+  getAllCanteenStudents
+);
+
+// Enregistrer un élève à la cantine
 studentsRouter.post(
-  "/qr/scan",
+  "/canteen",
+  authMiddleware,
+  hasRole("admin"),
+  addNewCanteenStudent
+);
+
+// Désinscrire un élève de la cantine
+studentsRouter.delete(
+  "/canteen/:canteenStudentId",
+  authMiddleware,
+  hasRole("admin"),
+  removeStudentFromCanteen
+);
+
+// Obtenir les élèves liés à un parent
+studentsRouter.get(
+  "/canteen/by-parent/:parentId",
+  authMiddleware,
+  hasRole(["admin", "parent"]),
+  getCanteenStudentsLinkedToAParent
+);
+
+// === ABONNEMENTS ===
+
+// Acheter un abonnement pour un élève
+studentsRouter.post(
+  "/canteen/:canteenStudentId/subscription",
+  authMiddleware,
+  hasRole(["parent", "admin"]),
+  buySubscriptionForACanteenStudent
+);
+
+// === SCAN QR CODE ===
+
+// Scanner le QR code d’un élève
+studentsRouter.post(
+  "/canteen/scan",
   authMiddleware,
   hasRole(["admin", "agent"]),
-  scanQRStudent
+  scanQRCodeForACanteenStudent
 );
 
-studentsRouter.get(
-  "/search",
-  authMiddleware,
-  hasRole("admin"),
-  searchSchoolStudent
-);
+// === NOTIFICATIONS ===
 
+// Récupérer les notifs d’un élève
 studentsRouter.get(
-  "/:studentId",
+  "/canteen/:canteenStudentId/notifications",
   authMiddleware,
   hasRole(["admin", "parent"]),
-  getOneStudent
+  getAllNotifOfAcanteenStudent
 );
 
-studentsRouter.get(
-  "/:studentId/notifications",
-  authMiddleware,
-  hasRole(["admin", "parent"]),
-  getAllNotifOfStudent
-);
-
-studentsRouter.get(
-  "/:studentId/meal-history",
-  authMiddleware,
-  hasRole(["admin", "parent"]),
-  getMealHistory
-);
-
+// Marquer toutes les notifs comme lues
 studentsRouter.patch(
-  "/:studentId/notifications",
+  "/canteen/:canteenStudentId/notifications",
   authMiddleware,
   hasRole(["admin", "parent"]),
   markAllNotifsAsRead
 );
 
+// Marquer une notif spécifique comme lue
 studentsRouter.patch(
-  "/:studentId/notifications/:notificationId",
+  "/canteen/:canteenStudentId/notifications/:notificationId",
   authMiddleware,
   hasRole(["admin", "parent"]),
   markOneNotifAsRead
 );
 
-studentsRouter.post(
-  "/:studentId/subscription",
+// === HISTORIQUE DES REPAS ===
+
+// Obtenir l’historique des repas
+studentsRouter.get(
+  "/canteen/:canteenStudentId/meal-history",
   authMiddleware,
-  hasRole(["parent", "admin"]),
-  buySubscription
+  hasRole(["admin", "parent"]),
+  getMealHistory
 );
 
 module.exports = studentsRouter;

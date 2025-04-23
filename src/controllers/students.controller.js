@@ -1,92 +1,58 @@
 const { PrismaClient } = require("@prisma/client");
 const { paginationQuery } = require("../utils");
-const prisma = new PrismaClient();
 const { hashValue } = require("../utils/index");
+const prisma = new PrismaClient();
 
-async function addNewStudent(req, res) {
-  const {
-    schoolStudentId,
-    parentEmail,
-    parentName,
-    parentPassword = process.env.DEFAULT_PASSWORD_FOR_NEW_PARENT_USER, //Set Default Password
-    ...extraFields
-  } = req.body;
+async function addNewCanteenStudent(req, res) {
+  const { enrolledStudentId, parentId, ...extraFields } = req.body;
 
-  // Vérification qu'il n'y a pas de champs supplémentaires
+  // Sécurité anti-clown 🤡
   if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
-      message:
-        "Seuls 'schoolStudentId', 'parentEmail', 'parentName' et parentPassword(optionnel) sont autorisés dans la requête.",
-    });
-  }
-  if (!schoolStudentId || !parentEmail || !parentName) {
-    return res.status(400).json({
-      message:
-        "Veuillez fournir le schoolStudentId de l'élève, le parentName et le parentEmail (Fournir aussi le parentPassword qui est optionnel).",
+      message: "Seuls 'enrolledStudentId' et 'parentId' sont autorisés.",
     });
   }
 
-  // Validation des données requises
-  if (!schoolStudentId || !parentEmail || !parentName) {
+  if (!enrolledStudentId || !parentId) {
     return res.status(400).json({
-      message: "Veuillez fournir l'ID de l'élève, le nom et l'email du parent.",
+      message:
+        "Les champs 'enrolledStudentId' et 'parentId' sont obligatoires.",
     });
   }
 
   try {
-    const result = await prisma.$transaction(async (prisma) => {
-      // Vérifier si l'élève existe dans SchoolStudent
-      const schoolStudent = await prisma.schoolStudent.findUnique({
-        where: {
-          id: schoolStudentId,
-        },
+    const result = await prisma.$transaction(async (tx) => {
+      // Vérifier si l'élève existe
+      const enrolledStudent = await tx.enrolledStudent.findUnique({
+        where: { id: enrolledStudentId },
       });
 
-      if (!schoolStudent) {
-        throw new Error("L'élève spécifié n'existe pas dans SchoolStudent.");
+      if (!enrolledStudent) {
+        throw new Error("Élève non trouvé.");
       }
 
-      // Vérifier si l'élève est déjà inscrit à la cantine
-      const existingStudent = await prisma.student.findUnique({
-        where: { schoolStudentId },
-      });
-
-      if (existingStudent) {
+      if (enrolledStudent.isRegisteredToCanteen) {
         throw new Error("Cet élève est déjà inscrit à la cantine.");
       }
 
-      // Vérifier si le parent existe déjà
-      let parentUser = await prisma.user.findUnique({
-        where: { email: parentEmail },
-        include: { parent: true }, // Vérifie si c'est bien un parent
+      // Vérifier si le parent existe
+      const parent = await tx.parent.findUnique({
+        where: { id: parentId },
       });
 
-      // Si le parent n'existe pas, le créer
-      if (!parentUser) {
-        parentUser = await prisma.user.create({
-          data: {
-            email: parentEmail,
-            name: parentName,
-            role: "parent",
-            password: await hashValue(parentPassword),
-            parent: {
-              create: {},
-            },
-          },
-        });
-      } else if (!parentUser.parent) {
-        throw new Error("Ce compte existe déjà mais n'est pas un parent.");
+      if (!parent) {
+        throw new Error("Parent introuvable.");
       }
 
-      // Création d'un matricule hashé pour le QR Code
-      const matriculeHashe = await hashValue(schoolStudent.matricule);
+      // Créer le hash du matricule
+      const matriculeHashe = await hashValue(enrolledStudent.matricule);
 
-      // Ajout de l'élève à la table Student
-      const newStudent = await prisma.student.create({
+      // Ajouter l'élève dans CanteenStudent
+      const canteenStudent = await tx.canteenStudent.create({
         data: {
-          schoolStudentId: schoolStudent.id,
+          enrolledStudentId: enrolledStudent.id,
           matriculeHashe,
-          parentId: parentUser.id,
+          parentId: parent.id,
           abonnements: {
             create: {
               duration: 0,
@@ -97,39 +63,80 @@ async function addNewStudent(req, res) {
           },
         },
         include: {
-          schoolStudent: true,
+          enrolledStudent: true,
           parent: {
-            include: {
-              user: true,
-            },
+            include: { user: true },
           },
           abonnements: true,
         },
       });
-      // Suppression des informations sensibles avant de renvoyer la réponse
-      delete newStudent.parent.user.password;
-      delete newStudent.parent.user.role;
-      // delete newStudent.
 
-      return newStudent;
+      // Mettre à jour l'EnrolledStudent pour dire qu'il est inscrit à la cantine
+      await tx.enrolledStudent.update({
+        where: { id: enrolledStudentId },
+        data: { isRegisteredToCanteen: true },
+      });
+
+      // Nettoyer avant de renvoyer (pas de password ni rôle admin dans la réponse)
+      delete canteenStudent.parent.user.password;
+      delete canteenStudent.parent.user.role;
+
+      return canteenStudent;
     });
 
     return res.status(201).json({
-      message: "L'élève a été ajouté avec succès à la cantine.",
+      message: "Élève inscrit à la cantine avec succès.",
       student: result,
     });
   } catch (error) {
     console.error("Erreur lors de l'ajout de l'élève à la cantine :", error);
-    return res.status(400).json({
-      message: error.message,
-    });
+    return res.status(400).json({ message: error.message });
   }
 }
 
-async function getAllSchoolStudents(req, res) {
+async function removeStudentFromCanteen(req, res) {
+  const { canteenStudentId } = req.params;
+
+  if (!canteenStudentId) {
+    return res.status(400).json({ message: "canteenStudentId requis." });
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Étape 1 : Vérifier si le canteenStudent existe
+      const canteenStudent = await tx.canteenStudent.findUnique({
+        where: { id: canteenStudentId },
+      });
+
+      if (!canteenStudent) {
+        throw new Error("Élève non trouvé dans la cantine.");
+      }
+
+      // Étape 2 : Mettre isRegisteredToCanteen à false dans EnrolledStudent
+      await tx.enrolledStudent.update({
+        where: { id: canteenStudent.enrolledStudentId },
+        data: { isRegisteredToCanteen: false },
+      });
+
+      // Étape 3 : Supprimer le record dans canteenStudent
+      await tx.canteenStudent.delete({
+        where: { id: canteenStudentId },
+      });
+    });
+
+    return res.status(200).json({
+      message: "Élève désinscrit de la cantine avec succès.",
+    });
+  } catch (error) {
+    console.error("Erreur lors de la désinscription :", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+}
+
+async function getAllEnrolledStudents(req, res) {
   try {
     const { page, limit } = req.query;
-    const result = await paginationQuery(prisma.schoolStudent, page, limit, {
+    const result = await paginationQuery(prisma.enrolledStudent, page, limit, {
       select: {
         id: true,
         name: true,
@@ -160,13 +167,13 @@ async function getAllSchoolStudents(req, res) {
   }
 }
 
-async function getAllStudents(req, res) {
+async function getAllCanteenStudents(req, res) {
   try {
     const { page, limit } = req.query;
-    const result = await paginationQuery(prisma.student, page, limit, {
+    const result = await paginationQuery(prisma.canteenStudent, page, limit, {
       select: {
         id: true,
-        schoolStudent: {
+        enrolledStudent: {
           select: {
             id: true,
             name: true,
@@ -215,11 +222,11 @@ async function getAllStudents(req, res) {
   }
 }
 
-async function getOneStudent(req, res) {
-  const { studentId } = req.params;
-  const student = await prisma.schoolStudent.findUnique({
+async function getEnrolledStudentById(req, res) {
+  const { enrolledStudentId } = req.params;
+  const enrolledStudent = await prisma.enrolledStudent.findUnique({
     where: {
-      id: studentId,
+      id: enrolledStudentId,
     },
     select: {
       id: true,
@@ -229,11 +236,11 @@ async function getOneStudent(req, res) {
       matricule: true,
       createdAt: true,
       updatedAt: true,
-      Student: true,
+      canteenStudent: true,
     },
   });
 
-  if (!student) {
+  if (!enrolledStudent) {
     return res.status(404).json({
       message: "Aucun élève trouvé avec cet identifiant.",
     });
@@ -241,13 +248,13 @@ async function getOneStudent(req, res) {
 
   return res.status(200).json({
     message: "Détails de l'élève",
-    student,
+    enrolledStudent,
   });
 }
 
-async function getStudentsFromParent(req, res) {
+async function getCanteenStudentsLinkedToAParent(req, res) {
   try {
-    const { parentId, ...extraFields } = req.body;
+    const { parentId } = req.params;
 
     // Vérification stricte des entrées (uniquement parentId)
     if (!parentId) {
@@ -256,39 +263,38 @@ async function getStudentsFromParent(req, res) {
       });
     }
 
-    if (Object.keys(extraFields).length > 0) {
-      return res.status(400).json({
-        message: "Seul 'parentId' est attendu dans le corps de la requête.",
+    const result = await prisma.$transaction(async (tx) => {
+      // Vérifier si le parent existe
+      const parent = await tx.parent.findUnique({
+        where: { id: parentId },
+        include: {
+          user: true,
+        },
       });
-    }
 
-    // Vérifier si le parent existe
-    const parentExists = await prisma.parent.findUnique({
-      where: { id: parentId },
-      include: {
-        user: true, // Inclure les infos du parent si besoin
-      },
-    });
+      if (!parent) {
+        throw new Error("Aucun parent trouvé avec cet identifiant.");
+      }
 
-    if (!parentExists) {
-      return res.status(404).json({
-        message: "Aucun parent trouvé avec cet identifiant.",
+      // Récupérer les élèves liés au parent
+      const canteenStudents = await tx.canteenStudent.findMany({
+        where: { parentId },
+        include: {
+          enrolledStudent: true,
+          abonnements: true,
+        },
       });
-    }
 
-    // Récupérer les élèves liés au parent
-    const students = await prisma.student.findMany({
-      where: { parentId },
-      include: {
-        schoolStudent: true,
-        abonnements: true,
-      },
+      // Suppression des informations sensibles avant de renvoyer la réponse
+      delete parent.user.password;
+
+      return canteenStudents;
     });
 
     return res.status(200).json({
       message: "Liste des élèves rattachés au parent",
-      nombre: students.length,
-      students,
+      nombre: result.length,
+      data: result,
     });
   } catch (error) {
     console.error(
@@ -302,9 +308,9 @@ async function getStudentsFromParent(req, res) {
   }
 }
 
-async function buySubscription(req, res) {
+async function buySubscriptionForACanteenStudent(req, res) {
   const { duration, price, ...extraFields } = req.body;
-  const { studentId } = req.params;
+  const { canteenStudentId } = req.params;
   if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
       message: "Seuls 'duration'et 'price' sont autorisés dans la requête.",
@@ -323,17 +329,17 @@ async function buySubscription(req, res) {
   }
 
   try {
-    const result = await prisma.$transaction(async (prisma) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Vérifier si l'élève existe
-      const student = await prisma.student.findUnique({
-        where: { id: studentId },
+      const student = await tx.canteenStudent.findUnique({
+        where: { id: canteenStudentId },
         include: {
           parent: {
             include: {
               user: true,
             },
           },
-          schoolStudent: true,
+          enrolledStudent: true,
         },
       });
 
@@ -345,9 +351,9 @@ async function buySubscription(req, res) {
       const endDate = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
       const startDate = new Date();
 
-      const existingActiveAbonnement = await prisma.abonnement.findFirst({
+      const existingActiveAbonnement = await tx.abonnement.findFirst({
         where: {
-          studentId,
+          canteenStudentId,
           status: "actif",
         },
       });
@@ -355,7 +361,7 @@ async function buySubscription(req, res) {
       let abonnement;
       if (existingActiveAbonnement) {
         // Mise à jour l'abonnement existant
-        abonnement = await prisma.abonnement.update({
+        abonnement = await tx.abonnement.update({
           where: { id: existingActiveAbonnement.id },
           data: {
             duration,
@@ -367,9 +373,9 @@ async function buySubscription(req, res) {
         });
       } else {
         // Création d'un nouvel abonnement
-        abonnement = await prisma.abonnement.create({
+        abonnement = await tx.abonnement.create({
           data: {
-            studentId,
+            canteenStudentId,
             duration,
             price,
             startDate,
@@ -380,12 +386,12 @@ async function buySubscription(req, res) {
       }
 
       // Créer une notification pour le parent
-      const notification = await prisma.notification.create({
+      const notification = await tx.notification.create({
         data: {
-          student: {
-            connect: { id: studentId }, // Utilisation de `connect` pour établir la relation
+          canteenStudent: {
+            connect: { id: canteenStudentId }, // Utilisation de `connect` pour établir la relation
           },
-          message: `Un nouvel abonnement de ${duration} jours a été acheté pour ${student.schoolStudent.name}.`,
+          message: `Un nouvel abonnement de ${duration} jours a été acheté pour ${student.enrolledStudent.name}.`,
           type: "abonnement",
           details: {
             duration,
@@ -410,18 +416,18 @@ async function buySubscription(req, res) {
   }
 }
 
-async function getAllNotifOfStudent(req, res) {
-  const { studentId } = req.params;
+async function getAllNotifOfAcanteenStudent(req, res) {
+  const { canteenStudentId } = req.params;
   const { page, limit } = req.query;
   try {
     const result = await paginationQuery(prisma.notification, page, limit, {
-      where: { studentId },
+      where: { canteenStudentId },
       orderBy: { createdAt: "desc" },
       include: {
-        student: {
+        canteenStudent: {
           select: {
             id: true,
-            schoolStudent: {
+            enrolledStudent: {
               select: {
                 name: true,
               },
@@ -444,12 +450,13 @@ async function getAllNotifOfStudent(req, res) {
 }
 
 async function markAllNotifsAsRead(req, res) {
-  const { studentId } = req.params;
+  const { canteenStudentId } = req.params;
   try {
     const notifications = await prisma.notification.updateMany({
-      where: { studentId },
+      where: { canteenStudentId },
       data: { read: true },
     });
+
     return res.status(200).json({
       message: "Toutes les notifications marquées comme lues.",
       notifications,
@@ -497,7 +504,7 @@ async function markOneNotifAsRead(req, res) {
   }
 }
 
-async function searchSchoolStudent(req, res) {
+async function searchEnrolledStudent(req, res) {
   try {
     const { query, page, limit } = req.query;
     if (!query) {
@@ -506,9 +513,9 @@ async function searchSchoolStudent(req, res) {
       });
     }
 
-    const result = await paginationQuery(prisma.schoolStudent, page, limit, {
+    const result = await paginationQuery(prisma.enrolledStudent, page, limit, {
       where: {
-         OR: [
+        OR: [
           { name: { contains: query, mode: "insensitive" } }, // recherche insensible à la casse
           { matricule: { contains: query, mode: "insensitive" } },
           { class: { contains: query, mode: "insensitive" } },
@@ -527,7 +534,7 @@ async function searchSchoolStudent(req, res) {
   }
 }
 
-async function scanQRStudent(req, res) {
+async function scanQRCodeForACanteenStudent(req, res) {
   const { matriculeHashe, ...extraFields } = req.body;
 
   // Vérification qu'il n'y a pas de champs supplémentaires
@@ -550,7 +557,7 @@ async function scanQRStudent(req, res) {
     const todayEnd = new Date(now.setHours(23, 59, 59, 999)); // Fin de la journée
 
     // Récupérer l'élève et son abonnement actif
-    const student = await prisma.student.findUnique({
+    const student = await prisma.canteenStudent.findUnique({
       where: { matriculeHashe },
       include: {
         abonnements: {
@@ -564,7 +571,7 @@ async function scanQRStudent(req, res) {
             date: { gte: todayStart, lte: todayEnd }, // Vérifier les repas d'aujourd'hui
           },
         },
-        schoolStudent: true,
+        enrolledStudent: true,
       },
     });
 
@@ -592,7 +599,7 @@ async function scanQRStudent(req, res) {
     // Enregistrer le repas
     const repas = await prisma.repas.create({
       data: {
-        studentId: student.id,
+        canteenStudentId: student.id,
         date: now,
         status: true, // L'élève a mangé
       },
@@ -601,10 +608,10 @@ async function scanQRStudent(req, res) {
     // Envoyer une notification au parent
     const notification = await prisma.notification.create({
       data: {
-        student: {
+        canteenStudent: {
           connect: { id: student.id },
         },
-        message: `Votre enfant ${student.schoolStudent.name} a été servi à la cantine aujourd'hui.`,
+        message: `Votre enfant ${student.enrolledStudent.name} a été servi à la cantine aujourd'hui.`,
         type: "repas",
         details: {
           date: now,
@@ -627,17 +634,17 @@ async function scanQRStudent(req, res) {
 }
 
 async function getMealHistory(req, res) {
-  const { studentId } = req.params;
+  const { canteenStudentId } = req.params;
 
-  if (!studentId) {
+  if (!canteenStudentId) {
     return res.status(400).json({
       message: "Veuillez fournir l'ID de l'élève.",
     });
   }
 
   try {
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
+    const student = await prisma.canteenStudent.findUnique({
+      where: { id: canteenStudentId },
     });
 
     if (!student) {
@@ -647,7 +654,7 @@ async function getMealHistory(req, res) {
     }
     // Récupérer tous les repas de l'élève
     const repas = await prisma.repas.findMany({
-      where: { studentId },
+      where: { canteenStudentId },
       orderBy: { date: "asc" },
     });
 
@@ -674,16 +681,17 @@ async function getMealHistory(req, res) {
 }
 
 module.exports = {
-  addNewStudent,
-  getAllSchoolStudents,
-  getAllStudents,
-  getOneStudent,
-  getStudentsFromParent,
-  buySubscription,
-  getAllNotifOfStudent,
+  addNewCanteenStudent,
+  removeStudentFromCanteen,
+  getAllEnrolledStudents,
+  getAllCanteenStudents,
+  getEnrolledStudentById,
+  getCanteenStudentsLinkedToAParent,
+  buySubscriptionForACanteenStudent,
+  getAllNotifOfAcanteenStudent,
   markAllNotifsAsRead,
   markOneNotifAsRead,
-  searchSchoolStudent,
-  scanQRStudent,
+  searchEnrolledStudent,
+  scanQRCodeForACanteenStudent,
   getMealHistory,
 };

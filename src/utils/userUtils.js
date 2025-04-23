@@ -76,7 +76,7 @@ const students = require("../../students.json"); // Chargement les données gén
 async function insertStudents() {
   try {
     // Insérer tous les élèves en une seule opération
-    await prisma.schoolStudent.createMany({
+    await prisma.enrolledStudent.createMany({
       data: students.map((student) => ({
         name: student.name,
         class: student.class,
