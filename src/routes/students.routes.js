@@ -2,9 +2,11 @@ const { Router } = require("express");
 const {
   addNewCanteenStudent,
   removeStudentFromCanteen,
+  reRegisterStudentToCanteen,
   getAllEnrolledStudents,
   getAllCanteenStudents,
   getEnrolledStudentById,
+  updateEnrolledStudent,
   getCanteenStudentsLinkedToAParent,
   buySubscriptionForACanteenStudent,
   getAllNotifOfAcanteenStudent,
@@ -17,6 +19,9 @@ const {
 
 const hasRole = require("../middlewares/role.middleware");
 const { authMiddleware } = require("../middlewares/auth.middleware");
+const {
+  checkSubscriptionExpirationMiddleware,
+} = require("../middlewares/checkSubscriptionExpiration.middleware");
 
 const studentsRouter = Router();
 
@@ -46,6 +51,14 @@ studentsRouter.get(
   getEnrolledStudentById
 );
 
+// Modifier les détails d'un élève inscrit
+studentsRouter.put(
+  "/enrolled/:enrolledStudentId",
+  authMiddleware,
+  hasRole("admin"),
+  updateEnrolledStudent
+);
+
 // === CANTEEN STUDENTS (Élèves enregistrés à la cantine) ===
 
 // Lister tous les élèves enregistrés à la cantine
@@ -62,6 +75,14 @@ studentsRouter.post(
   authMiddleware,
   hasRole("admin"),
   addNewCanteenStudent
+);
+
+// Réinscrire un élève à la cantine
+studentsRouter.post(
+  "/canteen/re-register/:canteenStudentId",
+  authMiddleware,
+  hasRole("admin"),
+  reRegisterStudentToCanteen
 );
 
 // Désinscrire un élève de la cantine
@@ -87,6 +108,7 @@ studentsRouter.post(
   "/canteen/:canteenStudentId/subscription",
   authMiddleware,
   hasRole(["parent", "admin"]),
+  checkSubscriptionExpirationMiddleware,
   buySubscriptionForACanteenStudent
 );
 

@@ -1,6 +1,8 @@
 const { PrismaClient } = require("@prisma/client");
 const { paginationQuery } = require("../utils");
 const { hashValue } = require("../utils/index");
+const { removeAccents } = require("../utils/userUtils");
+const pricing = require("../config/princing");
 const prisma = new PrismaClient();
 
 async function addNewCanteenStudent(req, res) {
@@ -47,6 +49,12 @@ async function addNewCanteenStudent(req, res) {
       // Créer le hash du matricule
       const matriculeHashe = await hashValue(enrolledStudent.matricule);
 
+      // Mettre à jour l'EnrolledStudent pour dire qu'il est inscrit à la cantine
+      await tx.enrolledStudent.update({
+        where: { id: enrolledStudentId },
+        data: { isRegisteredToCanteen: true },
+      });
+
       // Ajouter l'élève dans CanteenStudent
       const canteenStudent = await tx.canteenStudent.create({
         data: {
@@ -69,12 +77,6 @@ async function addNewCanteenStudent(req, res) {
           },
           abonnements: true,
         },
-      });
-
-      // Mettre à jour l'EnrolledStudent pour dire qu'il est inscrit à la cantine
-      await tx.enrolledStudent.update({
-        where: { id: enrolledStudentId },
-        data: { isRegisteredToCanteen: true },
       });
 
       // Nettoyer avant de renvoyer (pas de password ni rôle admin dans la réponse)
@@ -119,8 +121,9 @@ async function removeStudentFromCanteen(req, res) {
       });
 
       // Étape 3 : Supprimer le record dans canteenStudent
-      await tx.canteenStudent.delete({
+      await tx.canteenStudent.update({
         where: { id: canteenStudentId },
+        data: { isActive: false },
       });
     });
 
@@ -130,6 +133,52 @@ async function removeStudentFromCanteen(req, res) {
   } catch (error) {
     console.error("Erreur lors de la désinscription :", error);
     return res.status(500).json({ message: "Erreur serveur." });
+  }
+}
+
+async function reRegisterStudentToCanteen(req, res) {
+  const { canteenStudentId } = req.params;
+
+  if (!canteenStudentId) {
+    return res.status(400).json({ message: "canteenStudentId requis." });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const canteenStudent = await tx.canteenStudent.findUnique({
+        where: { id: canteenStudentId },
+      });
+
+      if (!canteenStudent) {
+        throw new Error("Aucun élève trouvé avec cet identifiant.");
+      }
+
+      if (canteenStudent.isActive) {
+        throw new Error("Cet élève est déjà actif dans la cantine.");
+      }
+
+      const updatedStudent = await tx.canteenStudent.update({
+        where: { id: canteenStudentId },
+        data: { isActive: true },
+      });
+
+      await tx.enrolledStudent.update({
+        where: { id: updatedStudent.enrolledStudentId },
+        data: { isRegisteredToCanteen: true },
+      });
+
+      return updatedStudent;
+    });
+
+    return res.status(200).json({
+      message: "Élève réinscrit à la cantine avec succès.",
+      student: result,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la réinscription :", error);
+    return res.status(500).json({
+      message: error.message || "Erreur serveur lors de la réinscription.",
+    });
   }
 }
 
@@ -145,6 +194,7 @@ async function getAllEnrolledStudents(req, res) {
         matricule: true,
         createdAt: true,
         updatedAt: true,
+        canteenStudent: true,
       },
     });
 
@@ -171,8 +221,10 @@ async function getAllCanteenStudents(req, res) {
   try {
     const { page, limit } = req.query;
     const result = await paginationQuery(prisma.canteenStudent, page, limit, {
+      where: { isActive: true },
       select: {
         id: true,
+        isActive: true,
         enrolledStudent: {
           select: {
             id: true,
@@ -182,6 +234,7 @@ async function getAllCanteenStudents(req, res) {
             matricule: true,
             createdAt: true,
             updatedAt: true,
+            isRegisteredToCanteen: true,
           },
         },
         parent: {
@@ -252,6 +305,66 @@ async function getEnrolledStudentById(req, res) {
   });
 }
 
+async function updateEnrolledStudent(req, res) {
+  const { enrolledStudentId } = req.params;
+  const { ...rest } = req.body;
+
+  const allowedFields = ["name", "class", "gender", "matricule"];
+  const unknownFields = Object.keys(rest).filter(
+    (key) => !allowedFields.includes(key)
+  );
+
+  if (unknownFields.length > 0) {
+    return res.status(400).json({
+      message: `Champs non autorisés : ${unknownFields.join(", ")}`,
+    });
+  }
+
+  const dataToUpdate = {};
+
+  for (const key of allowedFields) {
+    if (rest[key] !== undefined) {
+      if (key === "name") {
+        dataToUpdate.name = rest[key];
+        dataToUpdate.searchableName = removeAccents(rest[key]);
+      } else {
+        dataToUpdate[key] = rest[key];
+      }
+    }
+  }
+
+  if (Object.keys(dataToUpdate).length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Aucun champ valide fourni pour la mise à jour." });
+  }
+
+  try {
+    const updated = await prisma.enrolledStudent.update({
+      where: { id: enrolledStudentId },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        name: true,
+        class: true,
+        gender: true,
+        matricule: true,
+        updatedAt: true,
+      },
+    });
+
+    return res.status(200).json({
+      message: "EnrolledStudent mis à jour avec succès.",
+      student: updated,
+    });
+  } catch (error) {
+    console.error("Erreur updateEnrolledStudent:", error);
+    return res
+      .status(500)
+      .json({ message: "Erreur serveur lors de la mise à jour." });
+  }
+}
+
 async function getCanteenStudentsLinkedToAParent(req, res) {
   try {
     const { parentId } = req.params;
@@ -278,7 +391,7 @@ async function getCanteenStudentsLinkedToAParent(req, res) {
 
       // Récupérer les élèves liés au parent
       const canteenStudents = await tx.canteenStudent.findMany({
-        where: { parentId },
+        where: { parentId, isActive: true },
         include: {
           enrolledStudent: true,
           abonnements: true,
@@ -288,8 +401,18 @@ async function getCanteenStudentsLinkedToAParent(req, res) {
       // Suppression des informations sensibles avant de renvoyer la réponse
       delete parent.user.password;
 
+      canteenStudents.forEach((student) => {
+        delete student.enrolledStudent.searchableName;
+      });
+
       return canteenStudents;
     });
+
+    if (result.length === 0) {
+      return res.status(404).json({
+        message: "Aucun élève trouvé pour ce parent.",
+      });
+    }
 
     return res.status(200).json({
       message: "Liste des élèves rattachés au parent",
@@ -309,95 +432,80 @@ async function getCanteenStudentsLinkedToAParent(req, res) {
 }
 
 async function buySubscriptionForACanteenStudent(req, res) {
-  const { duration, price, ...extraFields } = req.body;
+  const { duration, ...extraFields } = req.body;
   const { canteenStudentId } = req.params;
+
   if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
-      message: "Seuls 'duration'et 'price' sont autorisés dans la requête.",
-    });
-  }
-  if (
-    !duration ||
-    !price ||
-    !(typeof duration === "number") ||
-    !(typeof price === "number")
-  ) {
-    return res.status(400).json({
-      message:
-        "Seuls 'duration'et 'price' sont autorisés dans la requête. Et veuillez les fournir en tant que nombres.",
+      message: "Seul 'duration' est autorisé dans la requête.",
     });
   }
 
+  const validDurations = Object.keys(pricing).map(Number);
+  if (!duration || !validDurations.includes(duration)) {
+    return res.status(400).json({
+      message: `Durée invalide. Durées acceptées : '${validDurations.join(
+        ", "
+      )}' en Number`,
+    });
+  }
+
+  const { price, type } = pricing[duration];
+
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Vérifier si l'élève existe
       const student = await tx.canteenStudent.findUnique({
-        where: { id: canteenStudentId },
+        where: { id: canteenStudentId, isActive: true },
         include: {
-          parent: {
-            include: {
-              user: true,
-            },
-          },
+          parent: { include: { user: true } },
           enrolledStudent: true,
         },
       });
 
       if (!student) {
-        throw new Error("Aucun élève trouvé avec cet identifiant.");
+        throw new Error("Aucun élève actif trouvé avec cet identifiant.");
       }
 
-      // Calculer la date de fin de l'abonnement
-      const endDate = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
-      const startDate = new Date();
+      const now = new Date();
+      const endDate = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000);
 
       const existingActiveAbonnement = await tx.abonnement.findFirst({
-        where: {
-          canteenStudentId,
-          status: "actif",
-        },
+        where: { canteenStudentId, status: "actif" },
       });
 
       let abonnement;
       if (existingActiveAbonnement) {
-        // Mise à jour l'abonnement existant
         abonnement = await tx.abonnement.update({
           where: { id: existingActiveAbonnement.id },
           data: {
             duration,
             price,
-            startDate,
+            type,
+            startDate: now,
             endDate,
             status: "actif",
           },
         });
       } else {
-        // Création d'un nouvel abonnement
         abonnement = await tx.abonnement.create({
           data: {
             canteenStudentId,
             duration,
             price,
-            startDate,
+            type,
+            startDate: now,
             endDate,
             status: "actif",
           },
         });
       }
 
-      // Créer une notification pour le parent
       const notification = await tx.notification.create({
         data: {
-          canteenStudent: {
-            connect: { id: canteenStudentId }, // Utilisation de `connect` pour établir la relation
-          },
-          message: `Un nouvel abonnement de ${duration} jours a été acheté pour ${student.enrolledStudent.name}.`,
+          canteenStudent: { connect: { id: canteenStudentId } },
+          message: `Un abonnement de ${duration} jours a été acheté pour ${student.enrolledStudent.name}.`,
           type: "abonnement",
-          details: {
-            duration,
-            price,
-            endDate,
-          },
+          details: { duration, price, endDate, type },
         },
       });
 
@@ -411,7 +519,7 @@ async function buySubscriptionForACanteenStudent(req, res) {
   } catch (error) {
     console.error("Erreur lors de l'achat de l'abonnement :", error);
     return res.status(500).json({
-      message: "Une erreur est survenue lors de l'achat de l'abonnement.",
+      message: error.message || "Erreur serveur lors de l'achat.",
     });
   }
 }
@@ -475,22 +583,33 @@ async function markAllNotifsAsRead(req, res) {
 
 async function markOneNotifAsRead(req, res) {
   const { notificationId } = req.params;
+  const notificationIdInt = parseInt(notificationId);
+  if (isNaN(notificationIdInt)) {
+    return res.status(400).json({
+      message: "L'ID de la notification doit être un nombre valide.",
+    });
+  }
   try {
-    const notification = await prisma.notification.findUnique({
-      where: { id: notificationId },
-    });
-    if (!notification) {
-      return res.status(404).json({
-        message: "Notification introuvable.",
+    const result = await prisma.$transaction(async (tx) => {
+      const notification = await tx.notification.findUnique({
+        where: { id: notificationIdInt },
       });
-    }
-    const updatedNotification = await prisma.notification.update({
-      where: { id: notificationId },
-      data: { read: true },
+
+      if (!notification) {
+        throw new Error("Notification introuvable.");
+      }
+
+      const updatedNotification = await tx.notification.update({
+        where: { id: notificationIdInt },
+        data: { read: true },
+      });
+
+      return updatedNotification;
     });
+
     return res.status(200).json({
       message: "Notification marquée comme lue.",
-      notification: updatedNotification,
+      notification: result,
     });
   } catch (error) {
     console.error(
@@ -516,14 +635,19 @@ async function searchEnrolledStudent(req, res) {
     const result = await paginationQuery(prisma.enrolledStudent, page, limit, {
       where: {
         OR: [
-          { name: { contains: query, mode: "insensitive" } }, // recherche insensible à la casse
+          {
+            searchableName: {
+              contains: removeAccents(query),
+              mode: "insensitive",
+            },
+          },
           { matricule: { contains: query, mode: "insensitive" } },
           { class: { contains: query, mode: "insensitive" } },
         ],
       },
     });
     return res.status(200).json({
-      message: "Liste des élèves",
+      message: "Liste des élèves trouvés",
       ...result,
     });
   } catch (error) {
@@ -537,14 +661,12 @@ async function searchEnrolledStudent(req, res) {
 async function scanQRCodeForACanteenStudent(req, res) {
   const { matriculeHashe, ...extraFields } = req.body;
 
-  // Vérification qu'il n'y a pas de champs supplémentaires
   if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
-      message: "Seul 'matriculeHashe'est autorisé dans la requête.",
+      message: "Seul 'matriculeHashe' est autorisé dans la requête.",
     });
   }
 
-  // Validation des données requises
   if (!matriculeHashe) {
     return res.status(400).json({
       message: "Veuillez fournir le matricule hashé pour le scan.",
@@ -553,82 +675,106 @@ async function scanQRCodeForACanteenStudent(req, res) {
 
   try {
     const now = new Date();
-    const todayStart = new Date(now.setHours(0, 0, 0, 0)); // Début de la journée
-    const todayEnd = new Date(now.setHours(23, 59, 59, 999)); // Fin de la journée
+    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const todayEnd = new Date(now.setHours(23, 59, 59, 999));
 
-    // Récupérer l'élève et son abonnement actif
-    const student = await prisma.canteenStudent.findUnique({
-      where: { matriculeHashe },
-      include: {
-        abonnements: {
-          where: {
-            status: "actif",
-            endDate: { gte: now }, // Vérifier que l'abonnement n'est pas expiré
+    const result = await prisma.$transaction(async (tx) => {
+      // 1 seule requête pour récupérer TOUT ce qu'il faut !
+      const student = await tx.canteenStudent.findUnique({
+        where: { matriculeHashe },
+        select: {
+          id: true,
+          isActive: true,
+          enrolledStudent: {
+            select: { name: true },
+          },
+          abonnements: {
+            where: {
+              status: "actif",
+            },
+            select: {
+              id: true,
+              endDate: true,
+            },
+          },
+          repas: {
+            where: {
+              date: { gte: todayStart, lte: todayEnd },
+            },
+            select: {
+              id: true,
+            },
           },
         },
-        repas: {
-          where: {
-            date: { gte: todayStart, lte: todayEnd }, // Vérifier les repas d'aujourd'hui
+      });
+
+      if (!student || !student.isActive) {
+        throw new Error("Élève introuvable ou inactif.");
+      }
+
+      const abonnement = student.abonnements[0];
+      if (!abonnement) {
+        throw new Error("L'élève n'a pas d'abonnement actif.");
+      }
+
+      if (abonnement.endDate && abonnement.endDate < new Date()) {
+        await Promise.all([
+          tx.abonnement.update({
+            where: { id: abonnement.id },
+            data: { status: "expiré" },
+          }),
+          tx.notification.create({
+            data: {
+              canteenStudentId: student.id,
+              message: `L'abonnement de ${student.enrolledStudent.name} a expiré.`,
+              type: "abonnement_expiré",
+              details: {
+                expiredAt: now,
+              },
+            },
+          }),
+        ]);
+
+        throw new Error("L'abonnement de cet élève a expiré.");
+      }
+
+      if (student.repas.length > 0) {
+        throw new Error("L'élève a déjà été servi aujourd'hui.");
+      }
+
+      const [repas, notification] = await Promise.all([
+        tx.repas.create({
+          data: {
+            canteenStudentId: student.id,
+            date: now,
+            status: true,
           },
-        },
-        enrolledStudent: true,
-      },
-    });
+        }),
+        tx.notification.create({
+          data: {
+            canteenStudentId: student.id,
+            message: `Votre enfant ${student.enrolledStudent.name} a été servi à la cantine aujourd'hui.`,
+            type: "repas",
+            details: {
+              date: now,
+              status: "servi",
+            },
+          },
+        }),
+      ]);
 
-    if (!student) {
-      return res.status(404).json({
-        message: "Élève introuvable.",
-      });
-    }
-
-    // Vérifier si l'élève a un abonnement actif
-    if (student.abonnements?.status !== "actif") {
-      return res.status(400).json({
-        message: "L'élève n'a pas d'abonnement actif.",
-      });
-    }
-
-    // Vérifier si l'élève a déjà mangé aujourd'hui
-    if (student.repas.length > 0) {
-      return res.status(400).json({
-        message: "L'élève a déjà été servi aujourd'hui.",
-        alreadyScanned: true,
-      });
-    }
-
-    // Enregistrer le repas
-    const repas = await prisma.repas.create({
-      data: {
-        canteenStudentId: student.id,
-        date: now,
-        status: true, // L'élève a mangé
-      },
-    });
-
-    // Envoyer une notification au parent
-    const notification = await prisma.notification.create({
-      data: {
-        canteenStudent: {
-          connect: { id: student.id },
-        },
-        message: `Votre enfant ${student.enrolledStudent.name} a été servi à la cantine aujourd'hui.`,
-        type: "repas",
-        details: {
-          date: now,
-          status: "servi",
-        },
-      },
+      return { repas, notification };
     });
 
     return res.status(200).json({
       message: "L'élève a été servi avec succès.",
-      repas,
-      notification,
+      ...result,
     });
   } catch (error) {
     console.error("Erreur lors du scan du QR Code :", error);
-    return res.status(500).json({
-      message: "Une erreur est survenue lors du scan du QR Code.",
+
+    return res.status(400).json({
+      message: error.message || "Erreur serveur lors du scan du QR Code.",
     });
   }
 }
@@ -683,9 +829,11 @@ async function getMealHistory(req, res) {
 module.exports = {
   addNewCanteenStudent,
   removeStudentFromCanteen,
+  reRegisterStudentToCanteen,
   getAllEnrolledStudents,
   getAllCanteenStudents,
   getEnrolledStudentById,
+  updateEnrolledStudent,
   getCanteenStudentsLinkedToAParent,
   buySubscriptionForACanteenStudent,
   getAllNotifOfAcanteenStudent,

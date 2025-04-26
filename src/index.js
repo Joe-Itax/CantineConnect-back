@@ -9,9 +9,9 @@ const passport = require("passport");
 const session = require("express-session");
 const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
-const corsLogger  = require("./middlewares/corsLogger.middleware");
+const corsLogger = require("./middlewares/corsLogger.middleware");
 // const responseLogger = require("./middlewares/responseLogger");
-const securityMiddleware  = require("./middlewares/security.middleware")
+const securityMiddleware = require("./middlewares/security.middleware");
 const isProduction = process.env.NODE_ENV === "production";
 
 const {
@@ -39,7 +39,7 @@ const allowedOrigins = [
   `http://localhost:3000`,
   `http://localhost:3001`,
   `https://cantine-connect-dashboard.vercel.app`,
-  `https://cantine-connect.vercel.app`
+  `https://cantine-connect.vercel.app`,
 ];
 const corsOptions = {
   origin: function (origin, callback) {
@@ -51,19 +51,19 @@ const corsOptions = {
     }
   },
   credentials: true, // Nécessaire pour utiliser des cookies avec CORS
-  exposedHeaders: ['set-cookie', 'x-auth-token'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  exposedHeaders: ["set-cookie", "x-auth-token"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-Requested-With',
-    'Accept',
-    'Set-Cookie'
-    ],
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Set-Cookie",
+  ],
   optionsSuccessStatus: 200,
 };
 
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 app.use(...securityMiddleware());
 app.use(cookieParser());
@@ -153,7 +153,11 @@ app.use(passport.session());
 require("./config/passport-strategies/local");
 serialiseDeserialiseUser(passport);
 
-require("./utils/dbKeepAlive");
+/**
+ * -------------- JOB ----------------
+ */
+require("./job/dbKeepAlive");
+require("./job/subscriptionChecker");
 
 /**
  * -------------- ROUTES ----------------
@@ -180,3 +184,54 @@ app.use(prismaErrorHandler);
 app.listen(PORT, () => {
   console.log(`The server listens on http://localhost:${PORT}`);
 });
+
+// const abonnements = await prisma.abonnement.findMany({
+//   where: {
+//     status: "actif",
+//     endDate: { lt: now },
+//   },
+//   include: {
+//     canteenStudent: {
+//       include: {
+//         parent: {
+//           include: {
+//             user: true,
+//           },
+//         },
+//         enrolledStudent: true,
+//       },
+//     },
+//   },
+// });
+
+// if (abonnements.length === 0) {
+//   console.log("✅ Aucun abonnement expiré trouvé.");
+//   return;
+// }
+
+// console.log(`🔍 ${abonnements.length} abonnement(s) expiré(s) détecté(s).`);
+
+// for (const abo of abonnements) {
+//   await prisma.$transaction(async (tx) => {
+//     await tx.abonnement.update({
+//       where: { id: abo.id },
+//       data: { status: "expiré" },
+//     });
+
+//     // Optionnel : envoyer une notif au parent
+//     await tx.notification.create({
+//       data: {
+//         canteenStudent: { connect: { id: abo.canteenStudentId } },
+//         message: `L'abonnement de ${abo.canteenStudent.enrolledStudent.name} a expiré.`,
+//         type: "abonnement_expiré",
+//         details: {
+//           expiredAt: now,
+//         },
+//       },
+//     });
+//   });
+
+//   console.log(
+//     `🚨 Abonnement expiré traité pour ${abo.canteenStudent.enrolledStudent.name}`
+//   );
+// }

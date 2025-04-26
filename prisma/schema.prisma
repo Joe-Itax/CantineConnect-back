@@ -8,16 +8,19 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      UserRole
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  parent    Parent?
+  id             String   @id @default(uuid())
+  email          String   @unique
+  password       String
+  role           UserRole
+  name           String
+  searchableName String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  parent         Parent?
 
   @@index([email])
+  @@index([searchableName])
+  @@index([id])
 }
 
 model Parent {
@@ -29,6 +32,7 @@ model Parent {
 model EnrolledStudent {
   id                    String          @id @default(uuid())
   name                  String
+  searchableName        String          @default("")
   class                 String
   gender                String
   matricule             String          @unique
@@ -39,6 +43,8 @@ model EnrolledStudent {
 
   @@index([matricule])
   @@index([id])
+  @@index([searchableName])
+  @@index([isRegisteredToCanteen])
 }
 
 model CanteenStudent {
@@ -46,6 +52,7 @@ model CanteenStudent {
   enrolledStudentId String          @unique
   matriculeHashe    String          @unique
   parentId          String
+  isActive          Boolean         @default(true)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   abonnements       Abonnement[]
@@ -66,6 +73,7 @@ model Abonnement {
   startDate        DateTime?           @default(now())
   endDate          DateTime?
   status           StatusSubscription?
+  type             String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   canteenStudentId String

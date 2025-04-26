@@ -1,5 +1,6 @@
 const { PrismaClient } = require("@prisma/client");
 const { paginationQuery, hashValue } = require("../utils");
+const { removeAccents } = require("../utils/userUtils");
 const prisma = new PrismaClient();
 
 const emailValid = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -52,14 +53,25 @@ async function addNewUser(req, res) {
         throw new Error("Un utilisateur avec cet email existe déjà.");
       }
 
-      return await tx.user.create({
+      const newUser = await tx.user.create({
         data: {
           email,
           password: await hashValue(password),
           role,
           name,
+          searchableName: removeAccents(name),
         },
       });
+
+      if (newUser.role === "parent") {
+        await tx.parent.create({
+          data: {
+            id: newUser.id,
+          },
+        });
+      }
+
+      return newUser;
     });
 
     delete user.password;
@@ -161,6 +173,10 @@ async function updateUser(req, res) {
         if (!validRoles.includes(rest[key])) {
           return res.status(400).json({ message: "Rôle invalide." });
         }
+      }
+      if (key === "name") {
+        dataToUpdate.name = rest[key];
+        dataToUpdate.searchableName = removeAccents(rest[key]);
       } else {
         dataToUpdate[key] = rest[key];
       }
@@ -190,7 +206,21 @@ async function updateUser(req, res) {
     });
   } catch (error) {
     console.error("Erreur updateUser:", error);
-    return res.status(500).json({ message: "Erreur serveur." });
+    // Gérer erreur Prisma: P2002 (conflit unique)
+    if (
+      error.code === "P2002" &&
+      error.meta &&
+      error.meta.target &&
+      error.meta.target.includes("email")
+    ) {
+      return res.status(400).json({
+        message: "Cet email est déjà utilisé par un autre utilisateur.",
+      });
+    }
+
+    return res.status(500).json({
+      message: "Erreur serveur lors de la mise à jour de l'utilisateur.",
+    });
   }
 }
 
@@ -209,10 +239,53 @@ async function deleteUser(req, res) {
   }
 }
 
+// ✅ Rechercher un utilisateur par email ou nom
+async function searchUser(req, res) {
+  try {
+    const { query, page, limit } = req.query;
+    if (!query) {
+      return res.status(400).json({
+        message: "Veuillez fournir une requête de recherche.",
+      });
+    }
+
+    const result = await paginationQuery(prisma.user, page, limit, {
+      where: {
+        OR: [
+          {
+            searchableName: {
+              contains: removeAccents(query),
+              mode: "insensitive",
+            },
+          },
+          { email: { contains: query, mode: "insensitive" } },
+        ],
+      },
+    });
+
+    // Delete password from result
+    result.data = result.data.map((user) => {
+      const { password, searchableName, ...rest } = user;
+      return rest;
+    });
+
+    return res.status(200).json({
+      message: "Liste des utilisateurs trouvés",
+      ...result,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la recherche des utilisateurs :", error);
+    return res.status(500).json({
+      message: "Une erreur est survenue lors de la recherche des utilisateurs.",
+    });
+  }
+}
+
 module.exports = {
   addNewUser,
   getAllUsers,
   getUserById,
   updateUser,
   deleteUser,
+  searchUser,
 };

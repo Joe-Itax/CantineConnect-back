@@ -3,8 +3,11 @@ async function paginationQuery(model, page = 1, limit = 10, options = {}) {
   limit = Math.max(1, parseInt(limit) || 10);
   const skip = (page - 1) * limit;
 
+  // Récuperation des filtres s'ils existent
+  const where = options.where || {};
+
   //Récupération du nombre total d'éléments
-  const totalItems = await model.count();
+  const totalItems = await model.count({ where });
   const totalPages = Math.ceil(totalItems / limit);
 
   // Vérifier si la page demandée est valide

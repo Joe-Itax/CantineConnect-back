@@ -3,3 +3,4 @@ node_modules
 .env
 students.json
 
+src/utils/script-util.js
