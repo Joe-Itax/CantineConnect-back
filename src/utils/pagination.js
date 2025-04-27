@@ -3,6 +3,13 @@ async function paginationQuery(model, page = 1, limit = 10, options = {}) {
   limit = Math.max(1, parseInt(limit) || 10);
   const skip = (page - 1) * limit;
 
+  if (!model || !model.count) {
+    // throw new Error("Modèle invalide fourni à paginationQuery");
+    return {
+      error: "Modèle invalide fourni à paginationQuery"
+    }
+  }
+
   // Récuperation des filtres s'ils existent
   const where = options.where || {};
 
