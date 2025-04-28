@@ -181,57 +181,17 @@ app.use(prismaErrorHandler);
 /**
  * -------------- RUN SERVER ----------------
  */
-app.listen(PORT, () => {
-  console.log(`The server listens on http://localhost:${PORT}`);
-});
-
-// const abonnements = await prisma.abonnement.findMany({
-//   where: {
-//     status: "actif",
-//     endDate: { lt: now },
-//   },
-//   include: {
-//     canteenStudent: {
-//       include: {
-//         parent: {
-//           include: {
-//             user: true,
-//           },
-//         },
-//         enrolledStudent: true,
-//       },
-//     },
-//   },
+// app.listen(PORT, () => {
+//   console.log(`The server listens on http://localhost:${PORT}`);
 // });
 
-// if (abonnements.length === 0) {
-//   console.log("✅ Aucun abonnement expiré trouvé.");
-//   return;
-// }
-
-// console.log(`🔍 ${abonnements.length} abonnement(s) expiré(s) détecté(s).`);
-
-// for (const abo of abonnements) {
-//   await prisma.$transaction(async (tx) => {
-//     await tx.abonnement.update({
-//       where: { id: abo.id },
-//       data: { status: "expiré" },
-//     });
-
-//     // Optionnel : envoyer une notif au parent
-//     await tx.notification.create({
-//       data: {
-//         canteenStudent: { connect: { id: abo.canteenStudentId } },
-//         message: `L'abonnement de ${abo.canteenStudent.enrolledStudent.name} a expiré.`,
-//         type: "abonnement_expiré",
-//         details: {
-//           expiredAt: now,
-//         },
-//       },
-//     });
-//   });
-
-//   console.log(
-//     `🚨 Abonnement expiré traité pour ${abo.canteenStudent.enrolledStudent.name}`
-//   );
-// }
+prisma
+  .$connect()
+  .then(() => {
+    console.log("✅ Connected to Database");
+    app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+  })
+  .catch((error) => {
+    console.error("❌ Failed to connect to Database:", error);
+    process.exit(1);
+  });
