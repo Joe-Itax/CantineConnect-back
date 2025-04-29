@@ -2,16 +2,16 @@ const cron = require("node-cron");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// function startSubscriptionChecker() {
-// Exécuter toutes les 6 (0 */6 * * *) heures
+// Exécuter toutes les 6 heures (0 */6 * * *)
 cron.schedule("0 */6 * * *", async () => {
   console.log("⏰ Lancement du cron job de vérification des abonnements...");
 
   const now = new Date();
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const abonnements = await tx.abonnement.findMany({
+    // Étape 1 : mise à jour
+    const abonnements = await prisma.$transaction(async (tx) => {
+      const abonnementsExpirés = await tx.abonnement.findMany({
         where: {
           status: "actif",
           endDate: { lt: now },
@@ -30,43 +30,45 @@ cron.schedule("0 */6 * * *", async () => {
         },
       });
 
-      if (abonnements.length === 0) {
+      if (abonnementsExpirés.length === 0) {
         console.log("✅ Aucun abonnement expiré trouvé.");
-        return;
+        return [];
       }
 
       console.log(
-        `🔍 ${abonnements.length} abonnement(s) expiré(s) détecté(s).`
+        `🔍 ${abonnementsExpirés.length} abonnement(s) expiré(s) détecté(s).`
       );
 
       await Promise.all(
-        abonnements.map(async (abo) => {
-          await tx.abonnement.update({
+        abonnementsExpirés.map((abo) =>
+          tx.abonnement.update({
             where: { id: abo.id },
             data: { status: "expiré" },
-          });
-
-          await tx.notification.create({
-            data: {
-              canteenStudent: { connect: { id: abo.canteenStudentId } },
-              message: `L'abonnement de ${abo.canteenStudent.enrolledStudent.name} a expiré.`,
-              type: "abonnement_expiré",
-              details: { expiredAt: now },
-            },
-          });
-
-          console.log(
-            `⛔ Abonnement expiré pour ${abo.canteenStudent.enrolledStudent.name}`
-          );
-        })
+          })
+        )
       );
+
+      return abonnementsExpirés;
     });
+
+    // Étape 2 : création des notifications
+    for (const abo of abonnements) {
+      await prisma.notification.create({
+        data: {
+          canteenStudent: { connect: { id: abo.canteenStudentId } },
+          message: `L'abonnement de ${abo.canteenStudent.enrolledStudent.name} a expiré.`,
+          type: "abonnement_expiré",
+          details: { expiredAt: now },
+        },
+      });
+
+      console.log(
+        `⛔ Abonnement expiré pour ${abo.canteenStudent.enrolledStudent.name}`
+      );
+    }
 
     console.log("🎯 Vérification terminée !");
   } catch (error) {
     console.error("❌ Erreur lors du cron job abonnement :", error);
   }
 });
-// }
-
-// startSubscriptionChecker();

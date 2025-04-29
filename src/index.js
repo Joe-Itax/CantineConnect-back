@@ -181,9 +181,6 @@ app.use(prismaErrorHandler);
 /**
  * -------------- RUN SERVER ----------------
  */
-// app.listen(PORT, () => {
-//   console.log(`The server listens on http://localhost:${PORT}`);
-// });
 
 prisma
   .$connect()

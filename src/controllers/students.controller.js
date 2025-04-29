@@ -192,6 +192,7 @@ async function getAllEnrolledStudents(req, res) {
         class: true,
         gender: true,
         matricule: true,
+        isRegisteredToCanteen: true,
         createdAt: true,
         updatedAt: true,
         canteenStudent: true,
