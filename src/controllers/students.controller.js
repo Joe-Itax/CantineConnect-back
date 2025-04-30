@@ -8,7 +8,6 @@ const prisma = new PrismaClient();
 async function addNewCanteenStudent(req, res) {
   const { enrolledStudentId, parentId, ...extraFields } = req.body;
 
-  // Sécurité anti-clown 🤡
   if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
       message: "Seuls 'enrolledStudentId' et 'parentId' sont autorisés.",
@@ -28,60 +27,96 @@ async function addNewCanteenStudent(req, res) {
       const enrolledStudent = await tx.enrolledStudent.findUnique({
         where: { id: enrolledStudentId },
       });
-
       if (!enrolledStudent) {
         throw new Error("Élève non trouvé.");
-      }
-
-      if (enrolledStudent.isRegisteredToCanteen) {
-        throw new Error("Cet élève est déjà inscrit à la cantine.");
       }
 
       // Vérifier si le parent existe
       const parent = await tx.parent.findUnique({
         where: { id: parentId },
       });
-
       if (!parent) {
         throw new Error("Parent introuvable.");
       }
 
-      // Créer le hash du matricule
+      // Vérifier si l'élève est déjà actif dans la cantine
+      const alreadyActive = await tx.canteenStudent.findFirst({
+        where: {
+          enrolledStudentId,
+          isActive: true,
+        },
+      });
+      if (alreadyActive) {
+        throw new Error("Cet élève est déjà inscrit à la cantine.");
+      }
+
+      // Vérifier si l'élève a un enregistrement inactif à réactiver
+      const oldRecord = await tx.canteenStudent.findFirst({
+        where: {
+          enrolledStudentId,
+          isActive: false,
+        },
+      });
+
       const matriculeHashe = await hashValue(enrolledStudent.matricule);
 
-      // Mettre à jour l'EnrolledStudent pour dire qu'il est inscrit à la cantine
+      let canteenStudent;
+
+      if (oldRecord) {
+        canteenStudent = await tx.canteenStudent.update({
+          where: { id: oldRecord.id },
+          data: {
+            isActive: true,
+            parentId,
+            matriculeHashe,
+            abonnements: {
+              create: {
+                duration: 0,
+                price: 0,
+                status: "expiré",
+                endDate: null,
+              },
+            },
+          },
+          include: {
+            enrolledStudent: true,
+            parent: {
+              include: { user: true },
+            },
+            abonnements: true,
+          },
+        });
+      } else {
+        canteenStudent = await tx.canteenStudent.create({
+          data: {
+            enrolledStudentId,
+            parentId,
+            matriculeHashe,
+            abonnements: {
+              create: {
+                duration: 0,
+                price: 0,
+                status: "expiré",
+                endDate: null,
+              },
+            },
+          },
+          include: {
+            enrolledStudent: true,
+            parent: {
+              include: { user: true },
+            },
+            abonnements: true,
+          },
+        });
+      }
+
       await tx.enrolledStudent.update({
         where: { id: enrolledStudentId },
         data: { isRegisteredToCanteen: true },
       });
 
-      // Ajouter l'élève dans CanteenStudent
-      const canteenStudent = await tx.canteenStudent.create({
-        data: {
-          enrolledStudentId: enrolledStudent.id,
-          matriculeHashe,
-          parentId: parent.id,
-          abonnements: {
-            create: {
-              duration: 0,
-              price: 0,
-              status: "expiré",
-              endDate: null,
-            },
-          },
-        },
-        include: {
-          enrolledStudent: true,
-          parent: {
-            include: { user: true },
-          },
-          abonnements: true,
-        },
-      });
-
-      // Nettoyer avant de renvoyer (pas de password ni rôle admin dans la réponse)
       delete canteenStudent.parent.user.password;
-      delete canteenStudent.parent.user.role;
 
       return canteenStudent;
     });
@@ -97,7 +132,13 @@ async function addNewCanteenStudent(req, res) {
 }
 
 async function removeStudentsFromCanteen(req, res) {
-  const { canteenStudentIds } = req.body;
+  const { canteenStudentIds, ...extraFields } = req.body;
+
+  if (Object.keys(extraFields).length > 0) {
+    return res.status(400).json({
+      message: "Seul 'canteenStudentIds' est autorisé.",
+    });
+  }
 
   if (!Array.isArray(canteenStudentIds)) {
     return res.status(400).json({
@@ -113,12 +154,11 @@ async function removeStudentsFromCanteen(req, res) {
   }
 
   try {
-    const now = new Date();
     const updatedStudents = [];
 
     await prisma.$transaction(async (tx) => {
       for (const id of canteenStudentIds) {
-        const canteenStudent = await tx.canteenStudent.findUnique({
+        const canteenStudent = await tx.canteenStudent.findFirst({
           where: { id, isActive: true },
           include: {
             enrolledStudent: true,
@@ -149,16 +189,17 @@ async function removeStudentsFromCanteen(req, res) {
       });
     }
 
-    console.log(
-      `${updatedStudents.length} élève(s), dont ${updatedStudents.join(
-        ", "
-      )}, ont été désinscrits de la cantine.`
-    );
+    const count = updatedStudents.length;
+    const baseMessage = `${count} élève${
+      count > 1 ? "s" : ""
+    }, dont ${updatedStudents.join(", ")}, ${
+      count > 1 ? "ont" : "a"
+    } été désinscrit${count > 1 ? "s" : ""} de la cantine.`;
+
+    console.log(baseMessage);
 
     return res.status(200).json({
-      message: `${updatedStudents.length} élève(s), dont ${updatedStudents.join(
-        ", "
-      )}, ont été désinscrits de la cantine.`,
+      message: baseMessage,
     });
   } catch (error) {
     console.error("Erreur lors de la désinscription multiple :", error);
