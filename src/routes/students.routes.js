@@ -1,7 +1,7 @@
 const { Router } = require("express");
 const {
   addNewCanteenStudent,
-  removeStudentFromCanteen,
+  removeStudentsFromCanteen,
   reRegisterStudentToCanteen,
   getAllEnrolledStudents,
   getAllCanteenStudents,
@@ -87,10 +87,10 @@ studentsRouter.post(
 
 // Désinscrire un élève de la cantine
 studentsRouter.delete(
-  "/canteen/:canteenStudentId",
+  "/canteen",
   authMiddleware,
   hasRole("admin"),
-  removeStudentFromCanteen
+  removeStudentsFromCanteen
 );
 
 // Obtenir les élèves liés à un parent

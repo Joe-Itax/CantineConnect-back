@@ -96,42 +96,72 @@ async function addNewCanteenStudent(req, res) {
   }
 }
 
-async function removeStudentFromCanteen(req, res) {
-  const { canteenStudentId } = req.params;
+async function removeStudentsFromCanteen(req, res) {
+  const { canteenStudentIds } = req.body;
 
-  if (!canteenStudentId) {
-    return res.status(400).json({ message: "canteenStudentId requis." });
+  if (!Array.isArray(canteenStudentIds)) {
+    return res.status(400).json({
+      message:
+        "Le corps de la requête doit contenir un tableau d'identifiants.",
+    });
+  }
+
+  if (canteenStudentIds.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Aucun identifiant d'élève fourni." });
   }
 
   try {
+    const now = new Date();
+    const updatedStudents = [];
+
     await prisma.$transaction(async (tx) => {
-      // Étape 1 : Vérifier si le canteenStudent existe
-      const canteenStudent = await tx.canteenStudent.findUnique({
-        where: { id: canteenStudentId },
-      });
+      for (const id of canteenStudentIds) {
+        const canteenStudent = await tx.canteenStudent.findUnique({
+          where: { id, isActive: true },
+          include: {
+            enrolledStudent: true,
+          },
+        });
 
-      if (!canteenStudent) {
-        throw new Error("Élève non trouvé dans la cantine.");
+        if (!canteenStudent) continue;
+
+        await tx.enrolledStudent.update({
+          where: { id: canteenStudent.enrolledStudentId },
+          data: { isRegisteredToCanteen: false },
+        });
+
+        await tx.canteenStudent.update({
+          where: { id },
+          data: { isActive: false },
+        });
+
+        updatedStudents.push(
+          `${canteenStudent.enrolledStudent.name} (${canteenStudent.enrolledStudent.matricule})`
+        );
       }
-
-      // Étape 2 : Mettre isRegisteredToCanteen à false dans EnrolledStudent
-      await tx.enrolledStudent.update({
-        where: { id: canteenStudent.enrolledStudentId },
-        data: { isRegisteredToCanteen: false },
-      });
-
-      // Étape 3 : Supprimer le record dans canteenStudent
-      await tx.canteenStudent.update({
-        where: { id: canteenStudentId },
-        data: { isActive: false },
-      });
     });
+
+    if (updatedStudents.length === 0) {
+      return res.status(404).json({
+        message: "Aucun élève actif trouvé avec les identifiants fournis.",
+      });
+    }
+
+    console.log(
+      `${updatedStudents.length} élève(s), dont ${updatedStudents.join(
+        ", "
+      )}, ont été désinscrits de la cantine.`
+    );
 
     return res.status(200).json({
-      message: "Élève désinscrit de la cantine avec succès.",
+      message: `${updatedStudents.length} élève(s), dont ${updatedStudents.join(
+        ", "
+      )}, ont été désinscrits de la cantine.`,
     });
   } catch (error) {
-    console.error("Erreur lors de la désinscription :", error);
+    console.error("Erreur lors de la désinscription multiple :", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 }
@@ -829,7 +859,7 @@ async function getMealHistory(req, res) {
 
 module.exports = {
   addNewCanteenStudent,
-  removeStudentFromCanteen,
+  removeStudentsFromCanteen,
   reRegisterStudentToCanteen,
   getAllEnrolledStudents,
   getAllCanteenStudents,
