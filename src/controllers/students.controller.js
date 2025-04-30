@@ -6,128 +6,107 @@ const pricing = require("../config/princing");
 const prisma = new PrismaClient();
 
 async function addNewCanteenStudent(req, res) {
-  const { enrolledStudentId, parentId, ...extraFields } = req.body;
+  const { enrolledStudentIds, parentId, ...extraFields } = req.body;
 
-  if (Object.keys(extraFields).length > 0) {
+  if (!Array.isArray(enrolledStudentIds) || !parentId) {
     return res.status(400).json({
-      message: "Seuls 'enrolledStudentId' et 'parentId' sont autorisés.",
+      message:
+        "Le corps de la requête doit contenir un tableau 'enrolledStudentIds' et un 'parentId'.",
     });
   }
 
-  if (!enrolledStudentId || !parentId) {
+  if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
-      message:
-        "Les champs 'enrolledStudentId' et 'parentId' sont obligatoires.",
+      message: "Seuls 'enrolledStudentIds' et 'parentId' sont autorisés.",
     });
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      // Vérifier si l'élève existe
-      const enrolledStudent = await tx.enrolledStudent.findUnique({
-        where: { id: enrolledStudentId },
-      });
-      if (!enrolledStudent) {
-        throw new Error("Élève non trouvé.");
-      }
+    const addedStudents = await prisma.$transaction(async (tx) => {
+      const list = [];
 
-      // Vérifier si le parent existe
-      const parent = await tx.parent.findUnique({
-        where: { id: parentId },
-      });
-      if (!parent) {
-        throw new Error("Parent introuvable.");
-      }
+      for (const studentId of enrolledStudentIds) {
+        const enrolledStudent = await tx.enrolledStudent.findUnique({
+          where: { id: studentId },
+        });
 
-      // Vérifier si l'élève est déjà actif dans la cantine
-      const alreadyActive = await tx.canteenStudent.findFirst({
-        where: {
-          enrolledStudentId,
-          isActive: true,
-        },
-      });
-      if (alreadyActive) {
-        throw new Error("Cet élève est déjà inscrit à la cantine.");
-      }
+        if (!enrolledStudent) continue;
 
-      // Vérifier si l'élève a un enregistrement inactif à réactiver
-      const oldRecord = await tx.canteenStudent.findFirst({
-        where: {
-          enrolledStudentId,
-          isActive: false,
-        },
-      });
+        const alreadyActive = await tx.canteenStudent.findFirst({
+          where: { enrolledStudentId: studentId, isActive: true },
+        });
 
-      const matriculeHashe = await hashValue(enrolledStudent.matricule);
+        if (alreadyActive) continue;
 
-      let canteenStudent;
+        const existingInactive = await tx.canteenStudent.findFirst({
+          where: { enrolledStudentId: studentId, isActive: false },
+        });
 
-      if (oldRecord) {
-        canteenStudent = await tx.canteenStudent.update({
-          where: { id: oldRecord.id },
-          data: {
-            isActive: true,
-            parentId,
-            matriculeHashe,
-            abonnements: {
-              create: {
-                duration: 0,
-                price: 0,
-                status: "expiré",
-                endDate: null,
+        const matriculeHashe = await hashValue(enrolledStudent.matricule);
+
+        if (existingInactive) {
+          await tx.canteenStudent.update({
+            where: { id: existingInactive.id },
+            data: {
+              isActive: true,
+              parentId,
+              matriculeHashe,
+              abonnements: {
+                create: {
+                  duration: 0,
+                  price: 0,
+                  status: "expiré",
+                  endDate: null,
+                },
               },
             },
-          },
-          include: {
-            enrolledStudent: true,
-            parent: {
-              include: { user: true },
-            },
-            abonnements: true,
-          },
-        });
-      } else {
-        canteenStudent = await tx.canteenStudent.create({
-          data: {
-            enrolledStudentId,
-            parentId,
-            matriculeHashe,
-            abonnements: {
-              create: {
-                duration: 0,
-                price: 0,
-                status: "expiré",
-                endDate: null,
+          });
+        } else {
+          await tx.canteenStudent.create({
+            data: {
+              enrolledStudentId: studentId,
+              parentId,
+              matriculeHashe,
+              abonnements: {
+                create: {
+                  duration: 0,
+                  price: 0,
+                  status: "expiré",
+                  endDate: null,
+                },
               },
             },
-          },
-          include: {
-            enrolledStudent: true,
-            parent: {
-              include: { user: true },
-            },
-            abonnements: true,
-          },
+          });
+        }
+
+        await tx.enrolledStudent.update({
+          where: { id: studentId },
+          data: { isRegisteredToCanteen: true },
         });
+
+        list.push(`${enrolledStudent.name} (${enrolledStudent.matricule})`);
       }
 
-      await tx.enrolledStudent.update({
-        where: { id: enrolledStudentId },
-        data: { isRegisteredToCanteen: true },
+      return list;
+    });
+
+    if (addedStudents.length === 0) {
+      return res.status(400).json({
+        message: "Aucun élève ajouté (déjà inscrit ou inexistant).",
       });
+    }
 
-      delete canteenStudent.parent.user.password;
+    const count = addedStudents.length;
+    const baseMessage = `${count} élève${
+      count > 1 ? "s" : ""
+    }, dont ${addedStudents.join(", ")}, ${count > 1 ? "ont" : "a"} été ajouté${
+      count > 1 ? "s" : ""
+    } à la cantine.`;
 
-      return canteenStudent;
-    });
-
-    return res.status(201).json({
-      message: "Élève inscrit à la cantine avec succès.",
-      student: result,
-    });
+    return res.status(201).json({ message: baseMessage });
   } catch (error) {
-    console.error("Erreur lors de l'ajout de l'élève à la cantine :", error);
-    return res.status(400).json({ message: error.message });
+    console.error("Erreur lors de l'ajout des élèves à la cantine :", error);
+    return res.status(500).json({ message: "Erreur serveur." });
   }
 }
 
@@ -143,7 +122,7 @@ async function removeStudentsFromCanteen(req, res) {
   if (!Array.isArray(canteenStudentIds)) {
     return res.status(400).json({
       message:
-        "Le corps de la requête doit contenir un tableau d'identifiants.",
+        "Le corps de la requête doit contenir un tableau 'canteenStudentIds'.",
     });
   }
 
