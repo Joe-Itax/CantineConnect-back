@@ -268,6 +268,89 @@ async function getAllEnrolledStudents(req, res) {
   }
 }
 
+async function getCanteenStudentById(req, res) {
+  try {
+    const { canteenStudentId, ...extraFields } = req.params;
+
+    if (Object.keys(extraFields).length > 0) {
+      return res.status(400).json({
+        message: "Seul 'canteenStudentId' est autorisé.",
+      });
+    }
+
+    if (!canteenStudentId) {
+      return res.status(400).json({
+        message: "Le canteenStudentId de l'élève est requis.",
+      });
+    }
+
+    const canteenStudent = await prisma.canteenStudent.findUnique({
+      where: {
+        id: canteenStudentId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        matriculeHashe: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        matriculeHashe: true,
+        enrolledStudent: {
+          select: {
+            id: true,
+            name: true,
+            class: true,
+            gender: true,
+            matricule: true,
+            createdAt: true,
+            updatedAt: true,
+            isRegisteredToCanteen: true,
+          },
+        },
+        parent: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+              },
+            },
+          },
+        },
+        abonnements: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1, // Récupérer seulement le dernier abonnement
+        },
+      },
+    });
+
+    if (!canteenStudent) {
+      return res.status(404).json({
+        message: "Élève non trouvé ou désactivé.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Détails de l'élève récupérés avec succès",
+      data: canteenStudent,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la récupération des détails de l'élève :",
+      error
+    );
+    return res.status(500).json({
+      message:
+        "Une erreur est survenue lors de la récupération des détails de l'élève.",
+      error: error.message,
+    });
+  }
+}
+
 async function getAllCanteenStudents(req, res) {
   try {
     const { page, limit } = req.query;
@@ -327,7 +410,20 @@ async function getAllCanteenStudents(req, res) {
 }
 
 async function getEnrolledStudentById(req, res) {
-  const { enrolledStudentId } = req.params;
+  const { enrolledStudentId, ...extraFields } = req.params;
+
+  if (Object.keys(extraFields).length > 0) {
+    return res.status(400).json({
+      message: "Seul 'enrolledStudentId' est autorisé.",
+    });
+  }
+
+  if (!enrolledStudentId) {
+    return res.status(400).json({
+      message: "Le enrolledStudentId de l'élève est requis.",
+    });
+  }
+
   const enrolledStudent = await prisma.enrolledStudent.findUnique({
     where: {
       id: enrolledStudentId,
@@ -882,6 +978,7 @@ module.exports = {
   removeStudentsFromCanteen,
   reRegisterStudentToCanteen,
   getAllEnrolledStudents,
+  getCanteenStudentById,
   getAllCanteenStudents,
   getEnrolledStudentById,
   updateEnrolledStudent,

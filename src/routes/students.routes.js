@@ -4,6 +4,7 @@ const {
   removeStudentsFromCanteen,
   reRegisterStudentToCanteen,
   getAllEnrolledStudents,
+  getCanteenStudentById,
   getAllCanteenStudents,
   getEnrolledStudentById,
   updateEnrolledStudent,
@@ -67,6 +68,14 @@ studentsRouter.get(
   authMiddleware,
   hasRole("admin"),
   getAllCanteenStudents
+);
+
+// Récupérer les détails d'un élève enregistré à la cantine
+studentsRouter.get(
+  "/canteen/:canteenStudentId",
+  authMiddleware,
+  hasRole("admin"),
+  getCanteenStudentById
 );
 
 // Enregistrer un élève à la cantine
