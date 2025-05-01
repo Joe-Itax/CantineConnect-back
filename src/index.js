@@ -10,7 +10,6 @@ const session = require("express-session");
 const { RedisStore } = require("connect-redis");
 const { createClient } = require("redis");
 const corsLogger = require("./middlewares/corsLogger.middleware");
-// const responseLogger = require("./middlewares/responseLogger");
 const securityMiddleware = require("./middlewares/security.middleware");
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -18,11 +17,13 @@ const {
   authBaseURI,
   usersBaseURI,
   studentsBaseURI,
+  dashboardBaseURI,
 } = require("./config/path.config");
 const {
   authRouter,
   usersRouter,
   studentsRouter,
+  dashboardRouter,
 } = require("./routes/index.routes");
 const { serialiseDeserialiseUser } = require("./utils");
 
@@ -50,7 +51,7 @@ const corsOptions = {
       callback(null, false);
     }
   },
-  credentials: true, // Nécessaire pour utiliser des cookies avec CORS
+  credentials: true,
   exposedHeaders: ["set-cookie", "x-auth-token"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: [
@@ -129,7 +130,7 @@ app.use(
       httpOnly: true, // Empêche l'accès au cookie via JavaScript (protection XSS)
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
-      maxAge: 1000 * 60 * 60 * 24 * 7, // Durée de vie du cookie (7 jours)
+      maxAge: 1000 * 60 * 60 * 24 * 3, // Durée de vie du cookie (3 jours)
     },
   })
 );
@@ -167,11 +168,10 @@ app.get("/", (req, res) => {
   res.send("Hello, la racine de l'app Cantine Connect");
 });
 
-// app.use(responseLogger);
-
 app.use(authBaseURI, authRouter);
 app.use(usersBaseURI, usersRouter);
 app.use(studentsBaseURI, studentsRouter);
+app.use(dashboardBaseURI, dashboardRouter);
 
 /**
  * Middleware d’erreur Prisma
