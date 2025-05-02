@@ -804,6 +804,88 @@ async function searchEnrolledStudent(req, res) {
   }
 }
 
+async function searchCanteenStudent(req, res) {
+  try {
+    const { query, page, limit } = req.query;
+
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({
+        message: "Veuillez fournir une requête de recherche valide.",
+      });
+    }
+
+    const result = await paginationQuery(prisma.canteenStudent, page, limit, {
+      where: {
+        OR: [
+          {
+            enrolledStudent: {
+              searchableName: {
+                contains: removeAccents(query),
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            enrolledStudent: {
+              matricule: {
+                contains: query,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            enrolledStudent: {
+              class: {
+                contains: query,
+                mode: "insensitive",
+              },
+            },
+          },
+        ],
+        isActive: true,
+      },
+      include: {
+        enrolledStudent: true,
+        parent: {
+          include: {
+            user: {
+              select: { email: true },
+            },
+          },
+        },
+        abonnements: {
+          select: {
+            status: true,
+            startDate: true,
+            endDate: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+
+    return res.status(200).json({
+      message: "Liste des élèves trouvés",
+      ...result,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur lors de la recherche des élèves à la cantine :",
+      error
+    );
+    return res.status(500).json({
+      message:
+        "Une erreur est survenue lors de la recherche des élèves à la cantine.",
+    });
+  }
+}
+
 async function scanQRCodeForACanteenStudent(req, res) {
   const { matriculeHashe, ...extraFields } = req.body;
 
@@ -987,6 +1069,7 @@ module.exports = {
   markAllNotifsAsRead,
   markOneNotifAsRead,
   searchEnrolledStudent,
+  searchCanteenStudent,
   scanQRCodeForACanteenStudent,
   getMealHistory,
 };

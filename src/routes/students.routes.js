@@ -14,6 +14,7 @@ const {
   markAllNotifsAsRead,
   markOneNotifAsRead,
   searchEnrolledStudent,
+  searchCanteenStudent,
   scanQRCodeForACanteenStudent,
   getMealHistory,
 } = require("../controllers/students.controller");
@@ -68,6 +69,14 @@ studentsRouter.get(
   authMiddleware,
   hasRole("admin"),
   getAllCanteenStudents
+);
+
+// Chercher un élève par recherche (name, matricule & class)
+studentsRouter.get(
+  "/canteen/search",
+  authMiddleware,
+  hasRole("admin"),
+  searchCanteenStudent
 );
 
 // Récupérer les détails d'un élève enregistré à la cantine
