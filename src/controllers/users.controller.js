@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const { paginationQuery, hashValue } = require("../utils");
 const { removeAccents } = require("../utils/userUtils");
-const prisma = new PrismaClient();
+const { prisma } = require("../lib/prisma");
 
 const emailValid = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const passwordValid = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;

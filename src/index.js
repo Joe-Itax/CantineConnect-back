@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
-const { PrismaClient } = require("@prisma/client");
+// const { prisma } = require("./lib/prisma");
 
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -135,15 +135,6 @@ app.use(
   })
 );
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-  log: ["query", "info", "warn", "error"],
-});
-
 /**
  * -------------- PASSPORT AUTHENTICATION ----------------
  */
@@ -182,13 +173,15 @@ app.use(prismaErrorHandler);
  * -------------- RUN SERVER ----------------
  */
 
-prisma
-  .$connect()
-  .then(() => {
-    console.log("✅ Connected to Database");
-    app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
-  })
-  .catch((error) => {
-    console.error("❌ Failed to connect to Database:", error);
-    process.exit(1);
-  });
+app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+
+// prisma
+//   .$connect()
+//   .then(() => {
+//     console.log("✅ Connected to Database");
+//     app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+//   })
+//   .catch((error) => {
+//     console.error("❌ Failed to connect to Database:", error);
+//     process.exit(1);
+//   });

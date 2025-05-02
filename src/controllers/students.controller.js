@@ -1,9 +1,8 @@
-const { PrismaClient } = require("@prisma/client");
 const { paginationQuery } = require("../utils");
 const { hashValue } = require("../utils/index");
 const { removeAccents } = require("../utils/userUtils");
 const pricing = require("../config/princing");
-const prisma = new PrismaClient();
+const { prisma } = require("../lib/prisma");
 
 async function addNewCanteenStudent(req, res) {
   const { enrolledStudentIds, parentId, ...extraFields } = req.body;

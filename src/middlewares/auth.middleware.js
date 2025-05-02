@@ -1,6 +1,3 @@
-const { PrismaClient } = require("@prisma/client");
-const { user } = new PrismaClient();
-
 async function authMiddleware(req, res, next) {
   // Vérifier si l'utilisateur est authentifié
   if (req.isAuthenticated()) {

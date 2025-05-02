@@ -1,7 +1,7 @@
 const passport = require("passport");
 const { Strategy, ExtractJwt } = require("passport-jwt");
-const { PrismaClient } = require("@prisma/client");
-const { user } = new PrismaClient();
+const { prisma } = require("../../lib/prisma");
+
 
 const cookieExtractor = function (req) {
   let token = null;
@@ -19,7 +19,7 @@ const opts = {
 passport.use(
   new Strategy(opts, async function (jwt_payload, done) {
     try {
-      const userReq = user.findUnique({
+      const userReq = prisma.u({
         where: {
           email: jwt_payload.email,
         },
