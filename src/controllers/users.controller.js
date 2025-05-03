@@ -224,16 +224,78 @@ async function updateUser(req, res) {
 }
 
 // ✅ Supprimer un utilisateur
-async function deleteUser(req, res) {
-  const { userId } = req.params;
+async function deleteUsers(req, res) {
+  const { userIds, ...extraFields } = req.body;
+
+  // Validation des données
+  if (Object.keys(extraFields).length > 0) {
+    return res.status(400).json({
+      message: "Seul 'userIds' est autorisé.",
+    });
+  }
+
+  if (!Array.isArray(userIds)) {
+    return res.status(400).json({
+      message: "Le corps de la requête doit contenir un tableau 'userIds'.",
+    });
+  }
+
+  if (userIds.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Aucun identifiant d'utilisateur fourni." });
+  }
+
+  // Validation des IDs
+  const invalidIds = userIds.filter(
+    (id) => typeof id !== "string" || !id.trim()
+  );
+  if (invalidIds.length > 0) {
+    return res.status(400).json({
+      message: `IDs invalides: ${invalidIds.join(", ")}`,
+    });
+  }
 
   try {
-    await prisma.user.delete({ where: { id: userId } });
-    return res
-      .status(200)
-      .json({ message: "Utilisateur supprimé avec succès." });
+    const updatedUsers = [];
+
+    await prisma.$transaction(async (tx) => {
+      for (const id of userIds) {
+        const user = await tx.user.findFirst({
+          where: { id },
+        });
+
+        if (!user) continue;
+
+        const userDeleted = await tx.user.delete({
+          where: { id },
+        });
+
+        updatedUsers.push(`${userDeleted.name}`);
+      }
+    });
+
+    if (updatedUsers.length === 0) {
+      return res.status(404).json({
+        message: "Aucun user trouvé avec les identifiants fournis.",
+      });
+    }
+
+    const count = updatedUsers.length;
+
+    const baseMessage = `${count} utilisateur${
+      count > 1 ? "s" : ""
+    }, dont ${updatedUsers.join(", ")}, ${
+      count > 1 ? "ont" : "a"
+    } été supprimé${count > 1 ? "s" : ""} de la cantine.`;
+
+    console.log(baseMessage);
+
+    return res.status(200).json({
+      message: baseMessage,
+    });
   } catch (error) {
-    console.error("Erreur suppression utilisateur:", error);
+    console.error("Erreur lors de la suppression multiple des users :", error);
     return res.status(500).json({ message: "Erreur serveur." });
   }
 }
@@ -285,6 +347,6 @@ module.exports = {
   getAllUsers,
   getUserById,
   updateUser,
-  deleteUser,
+  deleteUsers,
   searchUser,
 };
