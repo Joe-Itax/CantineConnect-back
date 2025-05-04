@@ -174,14 +174,3 @@ app.use(prismaErrorHandler);
  */
 
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
-
-// prisma
-//   .$connect()
-//   .then(() => {
-//     console.log("✅ Connected to Database");
-//     app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
-//   })
-//   .catch((error) => {
-//     console.error("❌ Failed to connect to Database:", error);
-//     process.exit(1);
-//   });

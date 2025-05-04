@@ -4,49 +4,80 @@ const { removeAccents } = require("../utils/userUtils");
 const pricing = require("../config/princing");
 const { prisma } = require("../lib/prisma");
 
+// ✅ Ajouter un élève à la cantine
 async function addNewCanteenStudent(req, res) {
   const { enrolledStudentIds, parentId, ...extraFields } = req.body;
 
-  if (!Array.isArray(enrolledStudentIds) || !parentId) {
-    return res.status(400).json({
-      message:
-        "Le corps de la requête doit contenir un tableau 'enrolledStudentIds' et un 'parentId'.",
-    });
-  }
-
+  // Validation
   if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
       message: "Seuls 'enrolledStudentIds' et 'parentId' sont autorisés.",
     });
   }
 
+  if (!Array.isArray(enrolledStudentIds)) {
+    return res.status(400).json({
+      message: "'enrolledStudentIds' doit être un tableau.",
+    });
+  }
+
+  if (!parentId || typeof parentId !== "string") {
+    return res.status(400).json({
+      message: "'parentId' doit être une chaîne de caractères valide.",
+    });
+  }
+
   try {
-    const addedStudents = await prisma.$transaction(async (tx) => {
-      const list = [];
+    // Vérification initiale du parent
+    const parentExists = await prisma.parent.findUnique({
+      where: { id: parentId },
+      select: { id: true },
+    });
+
+    if (!parentExists) {
+      return res.status(404).json({ message: "Parent non trouvé." });
+    }
+
+    const results = await prisma.$transaction(async (tx) => {
+      const addedStudents = [];
+      const errors = [];
 
       for (const studentId of enrolledStudentIds) {
-        const enrolledStudent = await tx.enrolledStudent.findUnique({
-          where: { id: studentId },
-        });
+        try {
+          // Validation de l'ID
+          if (typeof studentId !== "string" || !studentId.trim()) {
+            errors.push(`ID invalide: ${studentId}`);
+            continue;
+          }
 
-        if (!enrolledStudent) continue;
+          const enrolledStudent = await tx.enrolledStudent.findUnique({
+            where: { id: studentId },
+          });
 
-        const alreadyActive = await tx.canteenStudent.findFirst({
-          where: { enrolledStudentId: studentId, isActive: true },
-        });
+          if (!enrolledStudent) {
+            errors.push(`Élève ${studentId} non trouvé`);
+            continue;
+          }
 
-        if (alreadyActive) continue;
+          // Vérification existence active
+          const existingActive = await tx.canteenStudent.findFirst({
+            where: {
+              enrolledStudentId: studentId,
+              isActive: true,
+            },
+          });
 
-        const existingInactive = await tx.canteenStudent.findFirst({
-          where: { enrolledStudentId: studentId, isActive: false },
-        });
+          if (existingActive) {
+            errors.push(`${enrolledStudent.name} est déjà inscrit`);
+            continue;
+          }
 
-        const matriculeHashe = await hashValue(enrolledStudent.matricule);
+          const matriculeHashe = await hashValue(enrolledStudent.matricule);
 
-        if (existingInactive) {
-          await tx.canteenStudent.update({
-            where: { id: existingInactive.id },
-            data: {
+          // Création ou réactivation
+          await tx.canteenStudent.upsert({
+            where: { enrolledStudentId: studentId },
+            update: {
               isActive: true,
               parentId,
               matriculeHashe,
@@ -55,14 +86,10 @@ async function addNewCanteenStudent(req, res) {
                   duration: 0,
                   price: 0,
                   status: "expiré",
-                  endDate: null,
                 },
               },
             },
-          });
-        } else {
-          await tx.canteenStudent.create({
-            data: {
+            create: {
               enrolledStudentId: studentId,
               parentId,
               matriculeHashe,
@@ -71,144 +98,249 @@ async function addNewCanteenStudent(req, res) {
                   duration: 0,
                   price: 0,
                   status: "expiré",
-                  endDate: null,
                 },
               },
             },
           });
+
+          await tx.enrolledStudent.update({
+            where: { id: studentId },
+            data: { isRegisteredToCanteen: true },
+          });
+
+          addedStudents.push({
+            id: studentId,
+            name: enrolledStudent.name,
+            matricule: enrolledStudent.matricule,
+          });
+        } catch (error) {
+          errors.push(`Erreur avec l'élève ${studentId}: ${error.message}`);
         }
-
-        await tx.enrolledStudent.update({
-          where: { id: studentId },
-          data: { isRegisteredToCanteen: true },
-        });
-
-        list.push(`${enrolledStudent.name} (${enrolledStudent.matricule})`);
       }
 
-      return list;
+      return { addedStudents, errors };
     });
 
-    if (addedStudents.length === 0) {
+    if (results.addedStudents.length === 0) {
       return res.status(400).json({
-        message: "Aucun élève ajouté (déjà inscrit ou inexistant).",
+        message: "Aucun élève ajouté",
+        errors: results.errors,
       });
     }
 
-    const count = addedStudents.length;
-    const baseMessage = `${count} élève${
-      count > 1 ? "s" : ""
-    }, dont ${addedStudents.join(", ")}, ${count > 1 ? "ont" : "a"} été ajouté${
-      count > 1 ? "s" : ""
-    } à la cantine.`;
+    const successCount = results.addedStudents.length;
+    const studentNames = results.addedStudents.map(
+      (s) => `${s.name} (${s.matricule})`
+    );
 
-    return res.status(201).json({ message: baseMessage });
+    return res.status(201).json({
+      message: `${successCount} élève(s) ajouté(s) à la cantine`,
+      addedStudents: results.addedStudents,
+      errors: results.errors.length > 0 ? results.errors : undefined,
+    });
   } catch (error) {
-    console.error("Erreur lors de l'ajout des élèves à la cantine :", error);
-    return res.status(500).json({ message: "Erreur serveur." });
+    console.error("Erreur lors de l'ajout des élèves:", error);
+    return res.status(500).json({
+      message: "Erreur serveur",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 }
 
+// ✅ Supprimer un élève de la cantine (soft delete)
 async function removeStudentsFromCanteen(req, res) {
   const { canteenStudentIds, ...extraFields } = req.body;
 
+  // Validation approfondie
   if (Object.keys(extraFields).length > 0) {
     return res.status(400).json({
       message: "Seul 'canteenStudentIds' est autorisé.",
+      receivedFields: Object.keys(req.body),
     });
   }
 
   if (!Array.isArray(canteenStudentIds)) {
     return res.status(400).json({
-      message:
-        "Le corps de la requête doit contenir un tableau 'canteenStudentIds'.",
+      message: "'canteenStudentIds' doit être un tableau.",
+      typeReceived: typeof canteenStudentIds,
     });
   }
 
   if (canteenStudentIds.length === 0) {
-    return res
-      .status(400)
-      .json({ message: "Aucun identifiant d'élève fourni." });
+    return res.status(400).json({
+      message: "Aucun identifiant fourni.",
+      expected: "Tableau non vide d'IDs d'élèves cantine",
+    });
   }
 
-  try {
-    const updatedStudents = [];
-
-    await prisma.$transaction(async (tx) => {
-      for (const id of canteenStudentIds) {
-        const canteenStudent = await tx.canteenStudent.findFirst({
-          where: { id, isActive: true },
-          include: {
-            enrolledStudent: true,
-          },
-        });
-
-        if (!canteenStudent) continue;
-
-        await tx.enrolledStudent.update({
-          where: { id: canteenStudent.enrolledStudentId },
-          data: { isRegisteredToCanteen: false },
-        });
-
-        await tx.canteenStudent.update({
-          where: { id },
-          data: { isActive: false },
-        });
-
-        updatedStudents.push(
-          `${canteenStudent.enrolledStudent.name} (${canteenStudent.enrolledStudent.matricule})`
-        );
-      }
+  // Validation des IDs
+  const invalidIds = canteenStudentIds.filter(
+    (id) => typeof id !== "string" || !id.trim()
+  );
+  if (invalidIds.length > 0) {
+    return res.status(400).json({
+      message: "Certains IDs sont invalides",
+      invalidIds,
+      exampleValidId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
     });
-
-    if (updatedStudents.length === 0) {
-      return res.status(404).json({
-        message: "Aucun élève actif trouvé avec les identifiants fournis.",
-      });
-    }
-
-    const count = updatedStudents.length;
-    const baseMessage = `${count} élève${
-      count > 1 ? "s" : ""
-    }, dont ${updatedStudents.join(", ")}, ${
-      count > 1 ? "ont" : "a"
-    } été désinscrit${count > 1 ? "s" : ""} de la cantine.`;
-
-    console.log(baseMessage);
-
-    return res.status(200).json({
-      message: baseMessage,
-    });
-  } catch (error) {
-    console.error("Erreur lors de la désinscription multiple :", error);
-    return res.status(500).json({ message: "Erreur serveur." });
-  }
-}
-
-async function reRegisterStudentToCanteen(req, res) {
-  const { canteenStudentId } = req.params;
-
-  if (!canteenStudentId) {
-    return res.status(400).json({ message: "canteenStudentId requis." });
   }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const canteenStudent = await tx.canteenStudent.findUnique({
+      const operations = [];
+      const notFoundIds = [];
+      const alreadyInactiveIds = [];
+
+      // Première passe: vérification
+      for (const id of canteenStudentIds) {
+        const student = await tx.canteenStudent.findUnique({
+          where: { id },
+          select: { isActive: true, enrolledStudentId: true },
+        });
+
+        if (!student) {
+          notFoundIds.push(id);
+          continue;
+        }
+
+        if (!student.isActive) {
+          alreadyInactiveIds.push(id);
+          continue;
+        }
+
+        operations.push({
+          updateStudent: tx.enrolledStudent.update({
+            where: { id: student.enrolledStudentId },
+            data: { isRegisteredToCanteen: false },
+          }),
+          deactivateCanteenStudent: tx.canteenStudent.update({
+            where: { id },
+            data: { isActive: false },
+          }),
+          id,
+        });
+      }
+
+      // Exécution des opérations valides
+      await Promise.all(
+        operations.map((op) =>
+          Promise.all([op.updateStudent, op.deactivateCanteenStudent])
+        )
+      );
+
+      return {
+        deactivatedCount: operations.length,
+        notFoundIds,
+        alreadyInactiveIds,
+        deactivatedIds: operations.map((op) => op.id),
+      };
+    });
+
+    // Construction de la réponse
+    const response = {
+      message: `${result.deactivatedCount} élève(s) désinscrit(s) avec succès.`,
+      details: {
+        deactivatedCount: result.deactivatedCount,
+      },
+    };
+
+    if (result.notFoundIds.length > 0) {
+      response.details.notFound = result.notFoundIds;
+    }
+
+    if (result.alreadyInactiveIds.length > 0) {
+      response.details.alreadyInactive = result.alreadyInactiveIds;
+    }
+
+    if (result.deactivatedCount === 0) {
+      return res.status(404).json({
+        message: "Aucun élève actif trouvé",
+        details: response.details,
+      });
+    }
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("Erreur désinscription multiple:", error);
+    return res.status(500).json({
+      message: "Erreur lors de la désinscription",
+      errorCode: error.code,
+      details:
+        process.env.NODE_ENV === "development"
+          ? {
+              message: error.message,
+              stack: error.stack,
+            }
+          : undefined,
+    });
+  }
+}
+
+// ✅ Réenregistré un élève à la cantine
+async function reRegisterStudentToCanteen(req, res) {
+  const { canteenStudentId } = req.params;
+
+  // Validation de l'ID
+  if (!canteenStudentId || typeof canteenStudentId !== "string") {
+    return res.status(400).json({
+      message: "ID d'élève cantine invalide",
+      example: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    });
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Vérifier l'existence et le statut
+      const student = await tx.canteenStudent.findUnique({
         where: { id: canteenStudentId },
+        include: {
+          enrolledStudent: {
+            select: {
+              name: true,
+              matricule: true,
+            },
+          },
+          parent: {
+            select: {
+              user: {
+                select: {
+                  isActive: true,
+                },
+              },
+            },
+          },
+        },
       });
 
-      if (!canteenStudent) {
-        throw new Error("Aucun élève trouvé avec cet identifiant.");
+      if (!student) {
+        throw { status: 404, message: "Élève cantine non trouvé" };
       }
 
-      if (canteenStudent.isActive) {
-        throw new Error("Cet élève est déjà actif dans la cantine.");
+      if (student.isActive) {
+        throw { status: 400, message: "Cet élève est déjà actif" };
       }
 
+      // 2. Vérifier que le parent est actif
+      if (!student.parent?.user?.isActive) {
+        throw {
+          status: 400,
+          message: "Le parent associé n'est pas actif",
+        };
+      }
+
+      // 3. Mise à jour
       const updatedStudent = await tx.canteenStudent.update({
         where: { id: canteenStudentId },
         data: { isActive: true },
+        include: {
+          enrolledStudent: {
+            select: {
+              name: true,
+              class: true,
+            },
+          },
+        },
       });
 
       await tx.enrolledStudent.update({
@@ -216,21 +348,42 @@ async function reRegisterStudentToCanteen(req, res) {
         data: { isRegisteredToCanteen: true },
       });
 
-      return updatedStudent;
+      // 4. Créer un nouvel abonnement vide
+      await tx.abonnement.create({
+        data: {
+          canteenStudentId,
+          status: "expiré",
+          price: 0,
+          duration: 0,
+        },
+      });
+
+      return {
+        studentId: updatedStudent.id,
+        studentName: updatedStudent.enrolledStudent.name,
+        className: updatedStudent.enrolledStudent.class,
+        parentId: updatedStudent.parentId,
+      };
     });
 
     return res.status(200).json({
-      message: "Élève réinscrit à la cantine avec succès.",
+      message: `${result.studentName} a été réinscrit avec succès`,
       student: result,
     });
   } catch (error) {
-    console.error("Erreur lors de la réinscription :", error);
-    return res.status(500).json({
-      message: error.message || "Erreur serveur lors de la réinscription.",
+    console.error("Erreur réinscription:", error);
+    const status = error.status || 500;
+    return res.status(status).json({
+      message: error.message || "Erreur serveur",
+      details:
+        status === 500 && process.env.NODE_ENV === "development"
+          ? error.stack
+          : undefined,
     });
   }
 }
 
+// ✅ Lire tous les élèves de l'école
 async function getAllEnrolledStudents(req, res) {
   try {
     const { page, limit } = req.query;
@@ -267,6 +420,7 @@ async function getAllEnrolledStudents(req, res) {
   }
 }
 
+// ✅ Lire un élève enregistré à la Cantine par ID
 async function getCanteenStudentById(req, res) {
   try {
     const { canteenStudentId, ...extraFields } = req.params;
@@ -350,11 +504,12 @@ async function getCanteenStudentById(req, res) {
   }
 }
 
+// ✅ Lire tous les élèves enregistré à la Cantine
 async function getAllCanteenStudents(req, res) {
   try {
     const { page, limit } = req.query;
     const result = await paginationQuery(prisma.canteenStudent, page, limit, {
-      where: { isActive: true },
+      // where: { isActive: true },
       select: {
         id: true,
         isActive: true,
@@ -408,6 +563,7 @@ async function getAllCanteenStudents(req, res) {
   }
 }
 
+// ✅ Lire un élève de l'école par ID
 async function getEnrolledStudentById(req, res) {
   const { enrolledStudentId, ...extraFields } = req.params;
 
@@ -451,6 +607,7 @@ async function getEnrolledStudentById(req, res) {
   });
 }
 
+// ✅ Modifier un élève de l'école
 async function updateEnrolledStudent(req, res) {
   const { enrolledStudentId } = req.params;
   const { ...rest } = req.body;
@@ -511,6 +668,7 @@ async function updateEnrolledStudent(req, res) {
   }
 }
 
+// ✅ Lire les élèves enregistré à la Cantine par l'ID de leur parent
 async function getCanteenStudentsLinkedToAParent(req, res) {
   try {
     const { parentId } = req.params;
@@ -577,6 +735,7 @@ async function getCanteenStudentsLinkedToAParent(req, res) {
   }
 }
 
+// ✅ Acheter un abonnement pour un élève enregistré à la Cantine
 async function buySubscriptionForACanteenStudent(req, res) {
   const { duration, ...extraFields } = req.body;
   const { canteenStudentId } = req.params;
