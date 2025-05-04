@@ -440,7 +440,6 @@ async function getCanteenStudentById(req, res) {
     const canteenStudent = await prisma.canteenStudent.findUnique({
       where: {
         id: canteenStudentId,
-        isActive: true,
       },
       select: {
         id: true,
